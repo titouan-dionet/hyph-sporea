@@ -89,7 +89,7 @@ df_detections = pd.DataFrame(all_detections, columns=columns)
 
 file_name = f"{date_str}_{dataset_name}_detections_details.csv"
 
-df_detections.to_csv(os.path.join(results_path, file_name), index=False)
+df_detections.to_csv(os.path.join(results_path, "bounding_box_coord", file_name), index=False)
 
 #%% Sauvegarde des résultats par image
 
@@ -98,7 +98,7 @@ df_summary = pd.DataFrame(summary_list, columns=["image", "spore_count", "debris
 
 file_name = f"{date_str}_{dataset_name}_detections_summary.csv"
 
-df_summary.to_csv(os.path.join(results_path, file_name), index=False)
+df_summary.to_csv(os.path.join(results_path, "object_count", file_name), index=False)
 
 print("Export terminé : fichiers 'detections_details.csv' et 'detections_summary.csv' générés.")
 print(f"Les images prédites sont enregistrées dans : {output_dir}")

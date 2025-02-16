@@ -17,7 +17,7 @@ from datetime import datetime
 # from tkinter import ttk
 from tkinter import filedialog
 
-# #%% Initialisation de tkinter
+#%% Initialisation de tkinter
 # # Cette initialisation est nécessaire pour le bon déroulement du programme
 
 # init = tk.Tk()
@@ -37,13 +37,14 @@ from tkinter import filedialog
 
 dataset_path = filedialog.askdirectory(title = "Choose the dataset path.")
 
-model_path = filedialog.askopenfilename(
-    title = "Sélectionner un fichier",
-    filetypes = [("Modèles YOLO", "*.pt"), ("Tous les fichiers", "*.*")]
-)
+# model_path = filedialog.askopenfilename(
+#     title = "Sélectionner un fichier",
+#     filetypes = [("Modèles YOLO", "*.pt"), ("Tous les fichiers", "*.*")]
+# )
 
 #%% Modèle
 
+model_path = "../outputs/model/runs/train/hypho_model3/weights/best.pt"
 model = YOLO(model_path)
 
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -8,16 +8,43 @@ Created on Sun Feb 16 13:50:09 2025
 #%% Packages
 
 from ultralytics import YOLO
-import torch
+# import torch
 import pandas as pd
 import os
 from datetime import datetime
 
+# import tkinter as tk
+# from tkinter import ttk
+from tkinter import filedialog
+
+# #%% Initialisation de tkinter
+# # Cette initialisation est nécessaire pour le bon déroulement du programme
+
+# init = tk.Tk()
+# init.title("Initialisation")
+# init.resizable(0,0)
+# init.wm_attributes("-topmost", 1)
+
+# text_label = tk.Label(init, text="Initialisation of the program.\nPlease, click OK to continue.", padx=10, pady=10)
+# text_label.pack()
+
+# close_button = ttk.Button(init, text="OK", command=init.destroy)
+# close_button.pack()
+
+# init.mainloop()
+
+#%% Sélection des chemins d'accès
+
+dataset_path = filedialog.askdirectory(title = "Choose the dataset path.")
+
+model_path = filedialog.askopenfilename(
+    title = "Sélectionner un fichier",
+    filetypes = [("Modèles YOLO", "*.pt"), ("Tous les fichiers", "*.*")]
+)
+
 #%% Modèle
 
-dataset_path = "C:/Users/p05421/Documents/hypho/TRSP_21_MS_1"
-
-model = YOLO("../outputs/model/runs/train/hypho_model3/weights/best.pt")
+model = YOLO(model_path)
 
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 dataset_name = os.path.basename(dataset_path)

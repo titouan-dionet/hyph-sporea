@@ -11,22 +11,30 @@ from ultralytics import YOLO
 import torch
 import pandas as pd
 import os
+from datetime import datetime
 
 #%% Modèle
 
 # 1. Charger le modèle YOLO pré-entraîné 
-model = YOLO('../outputs/model/yolo11m.pt')  # Remplace par ton propre modèle si nécessaire
+model = YOLO('./outputs/model/yolo11m.pt')  # Remplace par ton propre modèle si nécessaire
 
 # 2. Entraînement du modèle (ajuste les paramètres selon tes besoins)
-data_yaml = "../data/hypho_data/data.yaml"
-model.train(data = data_yaml, epochs = 5, imgsz = 640, batch = 16, name = "hypho_model", project="../outputs/model/runs/train")
+data_yaml = "./data/hypho_data/data.yaml"
+model.train(data = data_yaml, epochs = 5, imgsz = 640, batch = 16, name = "hypho_model", project="./outputs/model/runs/train")
 
 # 3. Validation du modèle
-model.val(project = "../outputs/model/runs/val")
+model.val(project = "./outputs/model/runs/val")
 
 # 4. Analyse des résultats sur un ensemble d'images
 dataset_path = "C:/Users/p05421/Documents/hypho/TRSP_21_MS_1"
-results = model(dataset_path)
+
+model = YOLO("./outputs/model/runs/train/hypho_model3/weights/best.pt")
+
+date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+dataset_name = os.path.basename(dataset_path)
+output_dir = f"{date_str}_{dataset_name}"
+
+results = model(dataset_path, save = True, project = "./outputs/model/predict", name = output_dir)
 
 # 5. Extraction des données et export en CSV
 all_detections = []
@@ -56,13 +64,22 @@ for r in results:
         summary_counts[image_name][class_name] += 1
 
 # Sauvegarde des résultats détaillés
+
+results_path = "./outputs/model/results"
+
 columns = ["image", "class", "center_x", "center_y", "width", "height", "confidence"]
 df_detections = pd.DataFrame(all_detections, columns=columns)
-df_detections.to_csv("../outputs/model/results/detections_details.csv", index=False)
+
+file_name = f"{date_str}_{dataset_name}_detections_details.csv"
+
+df_detections.to_csv(os.path.join(results_path, file_name), index=False)
 
 # Sauvegarde des résultats par image
 summary_list = [[img, counts["Spores"], counts["Debris"], counts["Mycelium"]] for img, counts in summary_counts.items()]
 df_summary = pd.DataFrame(summary_list, columns=["image", "spore_count", "debris_count", "mycelium_count"])
-df_summary.to_csv("../outputs/model/results/detections_summary.csv", index=False)
+
+file_name = f"{date_str}_{dataset_name}_detections_summary.csv"
+
+df_summary.to_csv(os.path.join(results_path, file_name), index=False)
 
 print("Export terminé : fichiers 'detections_details.csv' et 'detections_summary.csv' générés.")

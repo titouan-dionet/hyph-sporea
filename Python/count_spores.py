@@ -52,7 +52,7 @@ output_dir = f"{date_str}_{dataset_name}"
 
 results = model(dataset_path, save = True, project = "../outputs/model/predict", name = output_dir)
 
-# Extraction des données et export en CSV
+#%% Extraction des données et export en CSV
 all_detections = []
 summary_counts = {}
 
@@ -79,7 +79,7 @@ for r in results:
             summary_counts[image_name] = {"Spores": 0, "Debris": 0, "Mycelium": 0}
         summary_counts[image_name][class_name] += 1
 
-# Sauvegarde des résultats détaillés
+#%% Sauvegarde des résultats détaillés
 
 results_path = "../outputs/model/results"
 
@@ -90,7 +90,8 @@ file_name = f"{date_str}_{dataset_name}_detections_details.csv"
 
 df_detections.to_csv(os.path.join(results_path, file_name), index=False)
 
-# Sauvegarde des résultats par image
+#%% Sauvegarde des résultats par image
+
 summary_list = [[img, counts["Spores"], counts["Debris"], counts["Mycelium"]] for img, counts in summary_counts.items()]
 df_summary = pd.DataFrame(summary_list, columns=["image", "spore_count", "debris_count", "mycelium_count"])
 

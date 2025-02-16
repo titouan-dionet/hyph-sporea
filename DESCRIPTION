@@ -1,0 +1,17 @@
+Package: hyph-sporea
+Type: Package
+Title: Hyph-Sporea
+Version: 0.0.0.9000
+Authors@R: c(
+    person(given   = "Titouan",
+           family  = "Dionet",
+           role    = c("aut", "cre", "cph"),
+           email   = "titouan.dionet@univ-lorraine.fr",
+           comment = c(ORCID = "0009-0006-5602-1873")))
+Description: Hyphomycetes Spores Recognition with Enhanced Algorithms
+URL: https://github.com/titouan-dionet/hyph-sporea
+BugReports: https://github.com/titouan-dionet/hyph-sporea/issues
+License: {{license}}
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2

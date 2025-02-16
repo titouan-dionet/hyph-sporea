@@ -176,3 +176,4 @@ cython_debug/
 .Rproj.user
 renv/
 .Rprofile
+.Rhistory

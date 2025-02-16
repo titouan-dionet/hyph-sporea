@@ -171,4 +171,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# R
 .Rproj.user
+renv/
+.Rprofile

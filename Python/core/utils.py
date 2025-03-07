@@ -88,6 +88,72 @@ def get_sample_info(sample_path):
     
     return info
 
+def get_sample_info_from_path(path):
+    """
+    Analyse le chemin d'un fichier ou dossier pour extraire les informations d'échantillon.
+    
+    Args:
+        path (str or Path): Chemin du fichier ou dossier
+    
+    Returns:
+        dict: Informations de l'échantillon
+    
+    Example:
+        >>> info = get_sample_info_from_path("T2_LUCU_MA01_C6/T2_LUCU_MA01_C6_000156.tif")
+        >>> print(info)
+        {'sample': 'T2_LUCU_MA01_C6', 'strain': 'T2_LUCU', 'condition': 'MA01_C6', 'replicate': '1'}
+    """
+    path = Path(path)
+    
+    # Déterminer le nom de l'échantillon
+    if path.is_file():
+        # Si c'est un fichier, utiliser le nom du dossier parent
+        sample_dir = path.parent.name
+        # Si le nom du fichier contient le nom du dossier, on l'extrait
+        filename_parts = path.stem.split('_')
+        if len(filename_parts) > 3:  # Format attendu: T2_LUCU_MA01_C6_000156
+            sample_name = '_'.join(filename_parts[:-1])  # Ignorer le dernier segment (numéro d'image)
+        else:
+            sample_name = sample_dir
+    else:
+        # Si c'est un dossier, utiliser son nom
+        sample_name = path.name
+    
+    # Diviser le nom de l'échantillon en parties
+    parts = sample_name.split('_')
+    
+    # Initialisation des informations
+    info = {'sample': sample_name}
+    
+    # Décider comment extraire strain et condition en fonction du nombre de parties
+    if len(parts) >= 4:  # ex: T2_LUCU_MA01_C6
+        # Les deux premières parties forment la souche
+        info['strain'] = parts[0] + '_' + parts[1]
+        # Les parties restantes forment la condition
+        info['condition'] = '_'.join(parts[2:])
+    elif len(parts) == 3:  # ex: T2_LUCU_C6
+        info['strain'] = parts[0] + '_' + parts[1]
+        info['condition'] = parts[2]
+    elif len(parts) == 2:  # ex: T2_LUCU
+        info['strain'] = sample_name
+        info['condition'] = 'unknown'
+    else:
+        info['strain'] = sample_name
+        info['condition'] = 'unknown'
+    
+    # Vérifier si la dernière partie est un nombre (réplicat)
+    last_part = parts[-1]
+    if last_part.isdigit():
+        info['replicate'] = last_part
+        # Ajuster strain et condition
+        if len(parts) > 2:
+            info['strain'] = '_'.join(parts[:-2])
+            info['condition'] = parts[-2]
+    else:
+        # Si pas de réplicat explicite, utiliser 1 par défaut
+        info['replicate'] = '1'
+    
+    return info
 
 def load_metadata(image_path):
     """

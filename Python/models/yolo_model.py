@@ -16,7 +16,7 @@ import numpy as np
 
 
 def train_yolo_model(data_yaml_path, epochs=100, img_size=640, batch_size=16, project_dir=None,
-                    patience=20, device=None):
+                    patience=20, device=None, output_dir=None):
     """
     Entraîne un modèle YOLO sur les données annotées.
     
@@ -28,6 +28,7 @@ def train_yolo_model(data_yaml_path, epochs=100, img_size=640, batch_size=16, pr
         project_dir (str, optional): Répertoire du projet pour les sorties. Si None, utilise 'outputs'.
         patience (int, optional): Patience pour l'arrêt anticipé. Par défaut 20.
         device (str, optional): Dispositif d'entraînement ('0', 'cpu', etc.). Si None, détecte automatiquement.
+        output_dir (str, optional): Répertoire spécifique pour le modèle de sortie.
     
     Returns:
         str: Chemin du modèle entraîné
@@ -37,6 +38,9 @@ def train_yolo_model(data_yaml_path, epochs=100, img_size=640, batch_size=16, pr
         >>> print(f"Modèle entraîné: {model_path}")
     """
     # Configuration du répertoire du projet
+    if output_dir:
+        project_dir = output_dir
+    
     if project_dir is None:
         project_dir = "outputs/models"
     

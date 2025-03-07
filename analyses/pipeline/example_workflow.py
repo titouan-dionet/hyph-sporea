@@ -82,11 +82,17 @@ def main():
         file_outputs=[config['proc_data_dir'] / "yolo_annotations" / "data.yaml"]
     )
     def annotate_images(_):
-        """Lance l'interface graphique d'annotation et attend que l'utilisateur finisse"""
+        """Lance l'interface graphique d'annotation et prépare les données pour YOLO"""
         from Python.gui.annotation_tool import run_annotation_tool
+        import shutil
+        import yaml
+        import os
+        
+        # Chemins des dossiers
+        yolo_dir = config['proc_data_dir'] / "yolo_annotations"
+        yaml_path = yolo_dir / "data.yaml"
         
         # Vérifier si le fichier data.yaml existe déjà
-        yaml_path = config['proc_data_dir'] / "yolo_annotations" / "data.yaml"
         if yaml_path.exists():
             print(f"Fichier d'annotations {yaml_path} trouvé, étape d'annotation ignorée.")
             return yaml_path
@@ -103,21 +109,96 @@ def main():
         input("Appuyez sur Entrée pour lancer l'interface d'annotation...")
         run_annotation_tool()
         
-        # Vérifier si l'annotation a été complétée
-        if not yaml_path.exists():
+        # Après l'annotation, rechercher où les fichiers ont été sauvegardés
+        preprocessed_dir = config['proc_data_dir'] / "preprocessed_images"
+        source_yolo_dir = preprocessed_dir / "yolo_annotations"
+        
+        if not source_yolo_dir.exists():
             raise FileNotFoundError(
-                f"Le fichier {yaml_path} n'a pas été créé. "
+                f"Le dossier {source_yolo_dir} n'a pas été créé. "
                 "Assurez-vous de sauvegarder et convertir en format YOLO avant de fermer l'interface."
             )
         
-        print("Annotation terminée avec succès!")
+        # Créer la structure de dossiers requise par YOLO
+        train_images_dir = yolo_dir / "train" / "images"
+        train_labels_dir = yolo_dir / "train" / "labels"
+        val_images_dir = yolo_dir / "val" / "images"
+        val_labels_dir = yolo_dir / "val" / "labels"
+        
+        os.makedirs(train_images_dir, exist_ok=True)
+        os.makedirs(train_labels_dir, exist_ok=True)
+        os.makedirs(val_images_dir, exist_ok=True)
+        os.makedirs(val_labels_dir, exist_ok=True)
+        
+        # Copier toutes les images et annotations dans les dossiers appropriés
+        # D'abord, compter les fichiers
+        txt_files = list(source_yolo_dir.glob('*.txt'))
+        annotated_images = []
+        
+        for txt_file in txt_files:
+            # Ignorer classes.txt et similaires
+            if txt_file.stem == 'classes':
+                continue
+                
+            # Trouver l'image correspondante
+            for ext in ['.jpeg', '.jpg', '.png']:
+                img_file = source_yolo_dir / f"{txt_file.stem}{ext}"
+                if img_file.exists():
+                    annotated_images.append((img_file, txt_file))
+                    break
+        
+        # Séparer en train (80%) et validation (20%)
+        import random
+        random.shuffle(annotated_images)
+        split_idx = int(len(annotated_images) * 0.8)
+        train_set = annotated_images[:split_idx]
+        val_set = annotated_images[split_idx:]
+        
+        # Copier les fichiers
+        for img_file, txt_file in train_set:
+            shutil.copy(img_file, train_images_dir / img_file.name)
+            shutil.copy(txt_file, train_labels_dir / txt_file.name)
+        
+        for img_file, txt_file in val_set:
+            shutil.copy(img_file, val_images_dir / img_file.name)
+            shutil.copy(txt_file, val_labels_dir / txt_file.name)
+        
+        # Copier le fichier classes.txt
+        classes_file = source_yolo_dir / "classes.txt"
+        if classes_file.exists():
+            shutil.copy(classes_file, yolo_dir / "classes.txt")
+        
+        # Lire les classes
+        classes = []
+        if (yolo_dir / "classes.txt").exists():
+            with open(yolo_dir / "classes.txt", 'r') as f:
+                classes = [line.strip() for line in f if line.strip()]
+        else:
+            classes = config['spore_classes']
+        
+        # Créer le fichier data.yaml
+        data = {
+            'path': str(yolo_dir),
+            'train': 'train/images',
+            'val': 'val/images',
+            'nc': len(classes),
+            'names': classes
+        }
+        
+        with open(yaml_path, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False)
+        
+        print(f"Annotation terminée avec succès! {len(annotated_images)} images annotées.")
+        print(f"Structure de données YOLO créée dans {yolo_dir}")
+        print(f"Ensembles : {len(train_set)} images d'entraînement, {len(val_set)} images de validation")
+        
         return yaml_path
     
     # ===== Étape 4: Entraînement du modèle YOLO =====
     @target(
         workflow=workflow,
         name="train_model",
-        file_inputs=["annotate_images"],
+        inputs=["annotate_images"],
         file_outputs=[config['models_dir'] / "yolo_spores_model.pt"]
     )
     def train_model(data_yaml_path):
@@ -147,9 +228,9 @@ def main():
         
         # Analyse des résultats
         sample_info = {
-            'sample': 'sample_1',
-            'strain': 'T1_ALAC',
-            'condition': 'C6',
+            'sample': 'T2_LUCU_MA01_C6',
+            'strain': 'T2_LUCU',
+            'condition': 'MA01_C6',
             'replicate': '1'
         }
         
@@ -185,9 +266,9 @@ def main():
         
         # Analyse des résultats
         sample_info = {
-            'sample': 'sample_2',
-            'strain': 'T1_ALAC',
-            'condition': 'C7',
+            'sample': 'T9_TEMA_MA01_C6',
+            'strain': 'T9_TEMA',
+            'condition': 'MA01_C6',
             'replicate': '1'
         }
         

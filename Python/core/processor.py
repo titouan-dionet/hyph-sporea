@@ -260,24 +260,19 @@ class HyphSporeaProcessor:
         print(f"Modèle U-Net entraîné et sauvegardé dans {model_path}")
         return model_path
     
-    def process_sample(self, sample_dir, model_path=None, output_dir=None):
+    def process_sample(self, sample_dir, model_path=None, output_dir=None, sample_info=None):
         """
         Traite un échantillon complet avec le modèle YOLO ou U-Net.
         
-        Traite toutes les images d'un échantillon en appliquant le modèle spécifié,
-        extrait les détections et génère des statistiques.
-        
         Args:
-            sample_dir (str): Répertoire contenant les images de l'échantillon.
+            sample_dir (str): Répertoire contenant les images de l'échantillon
             model_path (str, optional): Chemin du modèle à utiliser. Si None, utilise le modèle chargé.
-            output_dir (str, optional): Répertoire de sortie pour les résultats.
+            output_dir (str, optional): Répertoire de sortie pour les résultats
+            sample_info (dict, optional): Informations sur l'échantillon (souche, condition, etc.)
+                Si None, les informations sont extraites du nom du dossier.
         
         Returns:
-            Path: Chemin du répertoire contenant les résultats.
-        
-        Example:
-            >>> processor = HyphSporeaProcessor("/chemin/vers/projet")
-            >>> results_dir = processor.process_sample("data/raw_data/T1_ALAC_C6_1", "models/yolo_model.pt")
+            Path: Chemin du répertoire contenant les résultats
         """
         sample_dir = Path(sample_dir)
         
@@ -309,6 +304,11 @@ class HyphSporeaProcessor:
             output_dir = Path(output_dir)
             
         output_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Si sample_info n'est pas fourni, l'extraire du nom du dossier
+        if sample_info is None:
+            from ..core.utils import get_sample_info_from_path
+            sample_info = get_sample_info_from_path(sample_dir)
         
         # Récupérer tous les fichiers d'images dans le répertoire de l'échantillon
         image_files = [f for f in os.listdir(sample_dir) if f.lower().endswith(('.jpg', '.jpeg'))]
@@ -366,21 +366,23 @@ class HyphSporeaProcessor:
             json.dump(detections, f, indent=2)
         
         # Analyser les résultats
-        self.analyze_results(detections, output_dir)
+        self.analyze_results(detections, output_dir, sample_info)
         
         print(f"Traitement terminé. Résultats sauvegardés dans {output_dir}")
         return output_dir
     
-    def analyze_results(self, detections, output_dir):
+    def analyze_results(self, detections, output_dir, sample_info=None):
         """
         Analyse les résultats de détection et génère des statistiques.
         
         Args:
-            detections (dict): Dictionnaire contenant les détections par image.
-            output_dir (Path): Répertoire de sortie pour les analyses.
+            detections (dict): Dictionnaire des détections par image
+            output_dir (Path): Répertoire de sortie pour les analyses
+            sample_info (dict, optional): Informations sur l'échantillon.
+                Si None, les informations sont extraites du nom du répertoire.
         
         Returns:
-            dict: Statistiques calculées pour l'échantillon.
+            dict: Statistiques calculées
         
         Example:
             >>> processor = HyphSporeaProcessor("/chemin/vers/projet")
@@ -394,13 +396,21 @@ class HyphSporeaProcessor:
         analysis_dir = output_dir / 'analysis'
         analysis_dir.mkdir(exist_ok=True)
         
-        # Extraire les informations de l'échantillon depuis le nom du répertoire
-        sample_name = output_dir.name.replace('processed_', '')
-        parts = sample_name.split('_')
-        
-        strain = parts[0] + '_' + parts[1] if len(parts) > 1 else parts[0]
-        condition = parts[2] if len(parts) > 2 else 'unknown'
-        replicate = parts[3] if len(parts) > 3 else '1'
+        # Extraire les informations de l'échantillon
+        if sample_info:
+            # Utiliser les informations fournies
+            sample_name = sample_info.get('sample', 'unknown')
+            strain = sample_info.get('strain', 'unknown')
+            condition = sample_info.get('condition', 'unknown')
+            replicate = sample_info.get('replicate', '1')
+        else:
+            # Extraire les informations depuis le nom du répertoire
+            sample_name = output_dir.name.replace('processed_', '')
+            parts = sample_name.split('_')
+            
+            strain = parts[0] + '_' + parts[1] if len(parts) > 1 else parts[0]
+            condition = parts[2] if len(parts) > 2 else 'unknown'
+            replicate = parts[3] if len(parts) > 3 else '1'
         
         # Compter le nombre de spores détectées par classe
         class_counts = {}

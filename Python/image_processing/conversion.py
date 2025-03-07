@@ -15,6 +15,7 @@ import json
 from multiprocessing import Pool, cpu_count
 import time
 from pathlib import Path
+from ..core.utils import get_sample_info_from_path
 
 
 def extract_tiff_metadata(tiff_path):
@@ -47,29 +48,33 @@ def extract_tiff_metadata(tiff_path):
         # Extraction des métadonnées
         meta_dict = {}
         
-        # Récupération des métadonnées EXIF
-        exif_data = img._getexif()
-        if exif_data:
-            for tag_id, value in exif_data.items():
-                tag = TAGS.get(tag_id, tag_id)
-                meta_dict[tag] = str(value)
-        
         # Ajout des propriétés de base de l'image
         meta_dict['Width'] = img.width
         meta_dict['Height'] = img.height
         meta_dict['Format'] = img.format
         meta_dict['Mode'] = img.mode
         
+        # Tentative de récupération des métadonnées EXIF, sans erreur si absentes
+        try:
+            exif_data = img._getexif()
+            if exif_data:
+                for tag_id, value in exif_data.items():
+                    tag = TAGS.get(tag_id, tag_id)
+                    meta_dict[tag] = str(value)
+        except (AttributeError, TypeError, KeyError):
+            # Si pas de métadonnées EXIF, on continue sans erreur
+            pass
+        
         # Ajout d'informations supplémentaires extraites du nom de fichier
         filename = os.path.basename(tiff_path)
         name_parts = filename.split('_')
         
-        if len(name_parts) >= 4:
-            meta_dict['Strain'] = name_parts[0] + '_' + name_parts[1]
-            meta_dict['Condition'] = name_parts[2]
-            meta_dict['Replicate'] = name_parts[3]
-            if len(name_parts) >= 5:
-                meta_dict['ImageNumber'] = name_parts[4].split('.')[0]
+        # Analyse du nom de fichier pour extraire les informations
+        filepath = Path(tiff_path)
+        sample_info = get_sample_info_from_path(filepath)
+        
+        # Ajouter les informations d'échantillon aux métadonnées
+        meta_dict.update(sample_info)
         
         return meta_dict
     except Exception as e:

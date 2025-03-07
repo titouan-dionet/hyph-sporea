@@ -198,16 +198,21 @@ class SporeAnnotationTool:
                     return
                 
                 # Prétraitement pour détecter les objets
-                final_image, self.current_mask = enhanced_preprocess_image(self.current_image_path)
+                final_image, self.current_mask = enhanced_preprocess_image(
+                    self.current_image_path, 
+                    intensity='light'  # Utiliser le prétraitement léger
+                )
                 
                 # Extraction des composantes connexes
                 labeled_mask = measure.label(self.current_mask)
                 self.regions = measure.regionprops(labeled_mask)
                 
-                # Dessiner les contours des objets détectés
+                # Créer une image pour l'affichage
+                img_with_contours = self.current_image_cv.copy()
+                
+                # Dessiner les contours des objets détectés en BLEU (BGR: B=255, G=0, R=0)
                 contours, _ = cv2.findContours(self.current_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                img_with_contours = final_image.copy()
-                cv2.drawContours(img_with_contours, contours, -1, (0, 255, 0), 2)
+                cv2.drawContours(img_with_contours, contours,  -1, (255, 0, 0), 1)
                 
                 # Afficher les annotations existantes
                 img_name = os.path.basename(self.current_image_path)

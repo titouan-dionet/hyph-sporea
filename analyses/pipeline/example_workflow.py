@@ -68,23 +68,63 @@ def main():
     )
     def create_masks(preprocessed_dir):
         """Crée des masques binaires pour l'entraînement U-Net"""
+        preprocessed_dir = config['proc_data_dir'] / "preprocessed_images"
         return create_binary_masks(
             preprocessed_dir,
             config['proc_data_dir'] / "masks"
         )
     
+    # ===== Étape 3b: Première utilisation de l'interface =====
+    @target(
+        workflow=workflow,
+        name="annotate_images",
+        inputs=["preprocess_images"],
+        file_outputs=[config['proc_data_dir'] / "yolo_annotations" / "data.yaml"]
+    )
+    def annotate_images(_):
+        """Lance l'interface graphique d'annotation et attend que l'utilisateur finisse"""
+        from Python.gui.annotation_tool import run_annotation_tool
+        
+        # Vérifier si le fichier data.yaml existe déjà
+        yaml_path = config['proc_data_dir'] / "yolo_annotations" / "data.yaml"
+        if yaml_path.exists():
+            print(f"Fichier d'annotations {yaml_path} trouvé, étape d'annotation ignorée.")
+            return yaml_path
+        
+        print("\n" + "="*50)
+        print("ÉTAPE INTERACTIVE: Veuillez annoter quelques images")
+        print("1. Une interface graphique va s'ouvrir")
+        print("2. Chargez les images prétraitées depuis:", config['proc_data_dir'] / "preprocessed_images")
+        print("3. Annotez au moins quelques images")
+        print("4. Enregistrez et convertissez en format YOLO avant de fermer")
+        print("="*50 + "\n")
+        
+        # Lancer l'interface d'annotation
+        input("Appuyez sur Entrée pour lancer l'interface d'annotation...")
+        run_annotation_tool()
+        
+        # Vérifier si l'annotation a été complétée
+        if not yaml_path.exists():
+            raise FileNotFoundError(
+                f"Le fichier {yaml_path} n'a pas été créé. "
+                "Assurez-vous de sauvegarder et convertir en format YOLO avant de fermer l'interface."
+            )
+        
+        print("Annotation terminée avec succès!")
+        return yaml_path
+    
     # ===== Étape 4: Entraînement du modèle YOLO =====
     @target(
         workflow=workflow,
         name="train_model",
-        file_inputs=[config['proc_data_dir'] / "yolo_annotations" / "data.yaml"],
+        file_inputs=["annotate_images"],
         file_outputs=[config['models_dir'] / "yolo_spores_model.pt"]
     )
-    def train_model():
+    def train_model(data_yaml_path):
         """Entraîne le modèle YOLO"""
         return train_yolo_model(
-            config['proc_data_dir'] / "yolo_annotations" / "data.yaml",
-            epochs=config['yolo_epochs'],
+            data_yaml_path,
+            epochs=5,
             output_dir=config['models_dir']
         )
     
@@ -192,7 +232,7 @@ def main():
     
     # Exécuter le workflow
     print("\nExécution du workflow complet...")
-    results = workflow.execute(parallel=True)
+    results = workflow.execute(parallel=False)
     
     print("\nRésultats du workflow:")
     for target_name, result in results.items():

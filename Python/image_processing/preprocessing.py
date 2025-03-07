@@ -133,7 +133,7 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None, intensit
     return final_image, cleaned
 
 
-def batch_preprocess_directory(input_dir, output_dir, file_pattern="*.jpeg"):
+def batch_preprocess_directory(input_dir, output_dir, file_pattern="*.jpeg", intensity='medium'):
     """
     Prétraite toutes les images d'un répertoire correspondant au motif spécifié.
     
@@ -141,16 +141,10 @@ def batch_preprocess_directory(input_dir, output_dir, file_pattern="*.jpeg"):
         input_dir (str or Path): Répertoire contenant les images à prétraiter
         output_dir (str or Path): Répertoire de sortie pour les images prétraitées
         file_pattern (str, optional): Motif de fichier à traiter. Par défaut "*.jpeg"
+        intensity (str, optional): Intensité du prétraitement ('light', 'medium', 'strong'). Par défaut 'medium'.
     
     Returns:
-        int: Nombre d'images prétraitées
-    
-    Example:
-        >>> n_processed = batch_preprocess_directory(
-        ...     "data/proc_data/jpeg_images/T1_ALAC_C6_1",
-        ...     "data/proc_data/preprocessed/T1_ALAC_C6_1"
-        ... )
-        >>> print(f"{n_processed} images prétraitées")
+        Path: Chemin du répertoire de sortie
     """
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
@@ -163,7 +157,7 @@ def batch_preprocess_directory(input_dir, output_dir, file_pattern="*.jpeg"):
     
     if not files:
         print(f"Aucun fichier correspondant au motif '{file_pattern}' trouvé dans {input_dir}")
-        return 0
+        return output_dir
     
     print(f"Prétraitement de {len(files)} images...")
     
@@ -178,7 +172,13 @@ def batch_preprocess_directory(input_dir, output_dir, file_pattern="*.jpeg"):
         
         # Prétraiter et sauvegarder l'image
         try:
-            enhanced_preprocess_image(str(file_path), save=True, output_path=str(output_path))
+            # Passer le paramètre intensity à enhanced_preprocess_image
+            enhanced_preprocess_image(
+                str(file_path), 
+                save=True, 
+                output_path=str(output_path),
+                intensity=intensity
+            )
             
             # Afficher la progression
             if (i + 1) % 10 == 0 or i == len(files) - 1:
@@ -188,7 +188,7 @@ def batch_preprocess_directory(input_dir, output_dir, file_pattern="*.jpeg"):
             print(f"Erreur lors du prétraitement de {file_path}: {str(e)}")
     
     print(f"Prétraitement terminé. Images sauvegardées dans {output_dir}")
-    return len(files)
+    return output_dir
 
 
 def create_binary_masks(input_dir, output_dir, file_pattern="*.jpeg"):

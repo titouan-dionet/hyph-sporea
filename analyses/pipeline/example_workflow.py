@@ -13,9 +13,6 @@ import yaml
 import pandas as pd
 from pathlib import Path
 
-# Ajouter le répertoire parent au PATH pour importer les modules du projet
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from Python.core import HyphSporeaProcessor
 from Python.core.utils import get_sample_info_from_path
 from Python.image_processing import batch_preprocess_directory, create_binary_masks

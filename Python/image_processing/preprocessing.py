@@ -1,0 +1,296 @@
+"""
+Module de prétraitement d'images pour le projet HYPH-SPOREA.
+
+Ce module contient des fonctions pour améliorer les images de spores d'hyphomycètes
+afin de faciliter leur détection et segmentation.
+"""
+
+import cv2
+import numpy as np
+from skimage import exposure, filters, morphology
+import os
+from pathlib import Path
+
+
+def enhanced_preprocess_image(image_path, save=False, output_path=None):
+    """
+    Prétraite une image pour améliorer la visibilité des spores.
+    
+    Applique plusieurs techniques de traitement d'image pour isoler les spores
+    sur fond violet:
+    1. Séparation des canaux de couleur pour détecter les teintes violettes
+    2. Amélioration du contraste avec CLAHE
+    3. Réduction du bruit
+    4. Binarisation adaptative
+    5. Opérations morphologiques
+    6. Suppression des petits objets
+    
+    Args:
+        image_path (str): Chemin de l'image à prétraiter
+        save (bool, optional): Si True, sauvegarde l'image prétraitée. Par défaut False.
+        output_path (str, optional): Chemin de sortie pour l'image prétraitée.
+            Requis si save=True.
+    
+    Returns:
+        tuple: (image prétraitée, masque binaire)
+    
+    Example:
+        >>> processed_img, mask = enhanced_preprocess_image(
+        ...     "data/proc_data/jpeg_images/T1_ALAC_C6_1/T1_ALAC_C6_1_000156.jpeg",
+        ...     save=True,
+        ...     output_path="data/proc_data/preprocessed/T1_ALAC_C6_1/T1_ALAC_C6_1_000156.jpeg"
+        ... )
+    """
+    # Chargement de l'image
+    image = cv2.imread(image_path)
+    
+    if image is None:
+        raise ValueError(f"Impossible de lire l'image: {image_path}")
+    
+    # Séparation des canaux de couleur (pour mieux détecter les teintes violettes)
+    b, g, r = cv2.split(image)
+    
+    # Utilisation du canal bleu et rouge pour améliorer la détection des teintes violettes
+    # (le violet est un mélange de bleu et rouge)
+    violet_channel = cv2.addWeighted(b, 0.6, r, 0.4, 0)
+    
+    # Amélioration du contraste avec CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(violet_channel)
+    
+    # Réduction du bruit
+    denoised = cv2.GaussianBlur(enhanced, (3, 3), 0)
+    
+    # Binarisation adaptative pour gérer les variations de luminosité
+    binary = cv2.adaptiveThreshold(
+        denoised, 
+        255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY_INV, 
+        15, 
+        5
+    )
+    
+    # Opérations morphologiques pour améliorer la segmentation
+    kernel = np.ones((3, 3), np.uint8)
+    opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+    
+    # Suppression des petits objets (débris minuscules)
+    cleaned = morphology.remove_small_objects(
+        opening.astype(bool), 
+        min_size=30, 
+        connectivity=2
+    ).astype(np.uint8) * 255
+    
+    # Application du masque à l'image originale
+    result = cv2.bitwise_and(image, image, mask=cleaned)
+    
+    # Fond blanc
+    white_background = np.ones_like(image) * 255
+    final_image = np.where(result == 0, white_background, result)
+    
+    if save:
+        if output_path is None:
+            raise ValueError("output_path doit être spécifié si save=True")
+        
+        # Créer le répertoire de sortie si nécessaire
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Sauvegarder l'image prétraitée
+        cv2.imwrite(output_path, final_image)
+    
+    # Retourner à la fois l'image finale et le masque
+    return final_image, cleaned
+
+
+def batch_preprocess_directory(input_dir, output_dir, file_pattern="*.jpeg"):
+    """
+    Prétraite toutes les images d'un répertoire correspondant au motif spécifié.
+    
+    Args:
+        input_dir (str or Path): Répertoire contenant les images à prétraiter
+        output_dir (str or Path): Répertoire de sortie pour les images prétraitées
+        file_pattern (str, optional): Motif de fichier à traiter. Par défaut "*.jpeg"
+    
+    Returns:
+        int: Nombre d'images prétraitées
+    
+    Example:
+        >>> n_processed = batch_preprocess_directory(
+        ...     "data/proc_data/jpeg_images/T1_ALAC_C6_1",
+        ...     "data/proc_data/preprocessed/T1_ALAC_C6_1"
+        ... )
+        >>> print(f"{n_processed} images prétraitées")
+    """
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    
+    # Créer le répertoire de sortie
+    output_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Liste des fichiers à traiter
+    files = list(input_dir.glob(file_pattern))
+    
+    if not files:
+        print(f"Aucun fichier correspondant au motif '{file_pattern}' trouvé dans {input_dir}")
+        return 0
+    
+    print(f"Prétraitement de {len(files)} images...")
+    
+    # Prétraitement de chaque image
+    for i, file_path in enumerate(files):
+        # Chemin de sortie
+        rel_path = file_path.relative_to(input_dir)
+        output_path = output_dir / rel_path
+        
+        # Créer le répertoire parent si nécessaire
+        output_path.parent.mkdir(exist_ok=True, parents=True)
+        
+        # Prétraiter et sauvegarder l'image
+        try:
+            enhanced_preprocess_image(str(file_path), save=True, output_path=str(output_path))
+            
+            # Afficher la progression
+            if (i + 1) % 10 == 0 or i == len(files) - 1:
+                print(f"Progression: {i + 1}/{len(files)} images traitées")
+                
+        except Exception as e:
+            print(f"Erreur lors du prétraitement de {file_path}: {str(e)}")
+    
+    print(f"Prétraitement terminé. Images sauvegardées dans {output_dir}")
+    return len(files)
+
+
+def create_binary_masks(input_dir, output_dir, file_pattern="*.jpeg"):
+    """
+    Crée des masques binaires à partir des images prétraitées.
+    
+    Ces masques peuvent être utilisés pour l'entraînement du modèle U-Net.
+    
+    Args:
+        input_dir (str or Path): Répertoire contenant les images prétraitées
+        output_dir (str or Path): Répertoire de sortie pour les masques
+        file_pattern (str, optional): Motif de fichier à traiter. Par défaut "*.jpeg"
+    
+    Returns:
+        int: Nombre de masques générés
+    
+    Example:
+        >>> n_masks = create_binary_masks(
+        ...     "data/proc_data/preprocessed/T1_ALAC_C6_1",
+        ...     "data/proc_data/masks/T1_ALAC_C6_1"
+        ... )
+        >>> print(f"{n_masks} masques générés")
+    """
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    
+    # Créer le répertoire de sortie
+    output_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Liste des fichiers à traiter
+    files = list(input_dir.glob(file_pattern))
+    
+    if not files:
+        print(f"Aucun fichier correspondant au motif '{file_pattern}' trouvé dans {input_dir}")
+        return 0
+    
+    print(f"Génération de {len(files)} masques binaires...")
+    
+    # Génération de masques pour chaque image
+    for i, file_path in enumerate(files):
+        try:
+            # Charger l'image
+            image = cv2.imread(str(file_path))
+            
+            # Convertir en niveaux de gris
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Appliquer un seuillage pour obtenir un masque binaire
+            _, mask = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
+            
+            # Appliquer des opérations morphologiques pour améliorer le masque
+            kernel = np.ones((3, 3), np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+            
+            # Chemin de sortie
+            rel_path = file_path.relative_to(input_dir)
+            output_path = output_dir / rel_path.with_suffix('.png')
+            
+            # Créer le répertoire parent si nécessaire
+            output_path.parent.mkdir(exist_ok=True, parents=True)
+            
+            # Sauvegarder le masque
+            cv2.imwrite(str(output_path), mask)
+            
+            # Afficher la progression
+            if (i + 1) % 10 == 0 or i == len(files) - 1:
+                print(f"Progression: {i + 1}/{len(files)} masques générés")
+                
+        except Exception as e:
+            print(f"Erreur lors de la génération du masque pour {file_path}: {str(e)}")
+    
+    print(f"Génération de masques terminée. Masques sauvegardés dans {output_dir}")
+    return len(files)
+
+
+def create_visualization(image_path, mask_path=None, output_path=None):
+    """
+    Crée une visualisation de l'image avec son masque superposé.
+    
+    Args:
+        image_path (str or Path): Chemin de l'image originale
+        mask_path (str or Path, optional): Chemin du masque binaire.
+            Si None, génère le masque à partir de l'image.
+        output_path (str or Path, optional): Chemin de sortie pour la visualisation.
+            Si None, ne sauvegarde pas l'image.
+    
+    Returns:
+        numpy.ndarray: Image avec masque superposé
+    
+    Example:
+        >>> visualization = create_visualization(
+        ...     "data/proc_data/preprocessed/T1_ALAC_C6_1/T1_ALAC_C6_1_000156.jpeg",
+        ...     "data/proc_data/masks/T1_ALAC_C6_1/T1_ALAC_C6_1_000156.png",
+        ...     "outputs/visualizations/T1_ALAC_C6_1_000156_vis.jpeg"
+        ... )
+    """
+    # Charger l'image
+    image = cv2.imread(str(image_path))
+    
+    if image is None:
+        raise ValueError(f"Impossible de lire l'image: {image_path}")
+    
+    # Charger ou générer le masque
+    if mask_path is not None:
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        
+        if mask is None:
+            raise ValueError(f"Impossible de lire le masque: {mask_path}")
+    else:
+        # Générer le masque à partir de l'image
+        _, mask = enhanced_preprocess_image(str(image_path))
+    
+    # Créer une copie de l'image
+    visualization = image.copy()
+    
+    # Appliquer une teinte verte sur les objets détectés
+    green_overlay = np.zeros_like(image)
+    green_overlay[:, :, 1] = mask  # Canal vert
+    
+    # Superposer le masque avec transparence
+    alpha = 0.3
+    visualization = cv2.addWeighted(visualization, 1, green_overlay, alpha, 0)
+    
+    # Dessiner les contours en vert vif
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(visualization, contours, -1, (0, 255, 0), 2)
+    
+    # Sauvegarder la visualisation si un chemin de sortie est spécifié
+    if output_path is not None:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(exist_ok=True, parents=True)
+        cv2.imwrite(str(output_path), visualization)
+    
+    return visualization

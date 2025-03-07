@@ -200,7 +200,7 @@ class SporeAnnotationTool:
                 # Prétraitement pour détecter les objets
                 final_image, self.current_mask = enhanced_preprocess_image(
                     self.current_image_path, 
-                    intensity='light'  # Utiliser le prétraitement léger
+                    intensity='very_light'  # Utiliser le prétraitement léger
                 )
                 
                 # Extraction des composantes connexes

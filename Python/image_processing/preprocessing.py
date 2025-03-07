@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 
-def enhanced_preprocess_image(image_path, save=False, output_path=None):
+def enhanced_preprocess_image(image_path, save=False, output_path=None, intensity='medium'):
     """
     Prétraite une image pour améliorer la visibilité des spores.
     
@@ -30,6 +30,8 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None):
         save (bool, optional): Si True, sauvegarde l'image prétraitée. Par défaut False.
         output_path (str, optional): Chemin de sortie pour l'image prétraitée.
             Requis si save=True.
+        intensity (str, optional): Intensité du prétraitement ('light', 'medium', 'strong'). 
+            Par défaut 'medium'.
     
     Returns:
         tuple: (image prétraitée, masque binaire)
@@ -47,6 +49,26 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None):
     if image is None:
         raise ValueError(f"Impossible de lire l'image: {image_path}")
     
+    # Paramètres selon l'intensité
+    if intensity == 'light':
+        blur_size = 3
+        thresh_blocksize = 25
+        thresh_c = 7
+        morph_iterations = 0
+        min_size = 20
+    elif intensity == 'medium':
+        blur_size = 3
+        thresh_blocksize = 15
+        thresh_c = 5
+        morph_iterations = 1
+        min_size = 30
+    else:  # strong
+        blur_size = 5
+        thresh_blocksize = 11
+        thresh_c = 3
+        morph_iterations = 2
+        min_size = 50
+    
     # Séparation des canaux de couleur (pour mieux détecter les teintes violettes)
     b, g, r = cv2.split(image)
     
@@ -55,11 +77,11 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None):
     violet_channel = cv2.addWeighted(b, 0.6, r, 0.4, 0)
     
     # Amélioration du contraste avec CLAHE
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
     enhanced = clahe.apply(violet_channel)
     
     # Réduction du bruit
-    denoised = cv2.GaussianBlur(enhanced, (3, 3), 0)
+    denoised = cv2.GaussianBlur(enhanced, (blur_size, blur_size), 0)
     
     # Binarisation adaptative pour gérer les variations de luminosité
     binary = cv2.adaptiveThreshold(
@@ -67,27 +89,29 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None):
         255, 
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
         cv2.THRESH_BINARY_INV, 
-        15, 
-        5
+        thresh_blocksize, 
+        thresh_c
     )
     
-    # Opérations morphologiques pour améliorer la segmentation
-    kernel = np.ones((3, 3), np.uint8)
-    opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+    # Opérations morphologiques (optionnelles selon l'intensité)
+    if morph_iterations > 0:
+        kernel = np.ones((3, 3), np.uint8)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
     
-    # Suppression des petits objets (débris minuscules)
+    # Suppression des petits objets
     cleaned = morphology.remove_small_objects(
-        opening.astype(bool), 
-        min_size=30, 
+        binary.astype(bool), 
+        min_size=min_size, 
         connectivity=2
     ).astype(np.uint8) * 255
     
-    # Application du masque à l'image originale
-    result = cv2.bitwise_and(image, image, mask=cleaned)
+    # Résultat final avec fond original conservé pour éviter la fragmentation
+    # Utiliser le masque uniquement pour sélectionner les zones d'intérêt
+    result = image.copy()
     
     # Fond blanc
     white_background = np.ones_like(image) * 255
-    final_image = np.where(result == 0, white_background, result)
+    final_image = np.where(cv2.cvtColor(cleaned, cv2.COLOR_GRAY2BGR) == 0, white_background, result)
     
     if save:
         if output_path is None:

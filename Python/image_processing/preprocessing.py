@@ -50,7 +50,13 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None, intensit
         raise ValueError(f"Impossible de lire l'image: {image_path}")
     
     # Paramètres selon l'intensité
-    if intensity == 'light':
+    if intensity == 'very_light':
+        blur_size = 3
+        thresh_blocksize = 30
+        thresh_c = 7
+        morph_iterations = 0
+        min_size = 15
+    elif intensity == 'light':
         blur_size = 3
         thresh_blocksize = 25
         thresh_c = 7

@@ -16,6 +16,10 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
+import pyprojroot
+
+#%% Racine du projet 
+PROJECT_ROOT = pyprojroot.here()
 
 #%% Initialisation de tkinter
 # Cette initialisation est nécessaire pour le bon déroulement du programme
@@ -37,21 +41,21 @@ init.mainloop()
 
 dataset_path = filedialog.askdirectory(title = "Choose the dataset path.")
 
-# model_path = filedialog.askopenfilename(
-#     title = "Sélectionner un fichier",
-#     filetypes = [("Modèles YOLO", "*.pt"), ("Tous les fichiers", "*.*")]
-# )
+model_path = filedialog.askopenfilename(
+    title = "Sélectionner un fichier",
+    filetypes = [("Modèles YOLO", "*.pt"), ("Tous les fichiers", "*.*")]
+)
 
 #%% Modèle
 
-model_path = "../outputs/model/runs/train/hypho_model3/weights/best.pt"
+# model_path = "../outputs/model/runs/train/hypho_model3/weights/best.pt"
 model = YOLO(model_path)
 
 date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 dataset_name = os.path.basename(dataset_path)
 output_dir = f"{date_str}_{dataset_name}"
 
-results = model(dataset_path, save = True, project = "../outputs/model/predict", name = output_dir)
+results = model(dataset_path, save = True, project = PROJECT_ROOT / "outputs/model_CLAQ/predict", name = output_dir)
 
 #%% Extraction des données et export en CSV
 all_detections = []

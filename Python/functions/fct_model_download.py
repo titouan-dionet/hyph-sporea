@@ -49,12 +49,12 @@ def model_dwl(path, model):
     
     # Check model type and execute corresponding model loading
     if 'yolo' in model.lower():
-        YOLO(model_path)
-        print(f"YOLO model {model} loaded.")
+        model_instance = YOLO(model_path)
+        print(f"YOLO model {model} loaded and ready.")
     elif 'sam' in model.lower():
-        SAM(model_path)
-        print(f"SAM model {model} loaded.")
+        model_instance = SAM(model_path)
+        print(f"SAM model {model} loaded and ready.")
     else:
         raise ValueError("Model type not supported. Please provide a YOLO or SAM model.")
     
-    return print(f"Model {model} downloaded and ready.")
+    return model_instance

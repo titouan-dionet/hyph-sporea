@@ -51,8 +51,8 @@ def train_yolo_model(data_yaml_path, epochs=100, img_size=640, batch_size=16, pr
     if device is None:
         device = '0' if torch.cuda.is_available() else 'cpu'
     
-    # Initialiser le modèle YOLO (YOLOv8 nano)
-    model = YOLO('yolov8n.pt')
+    # Initialiser le modèle YOLO (YOLO11m)
+    model = YOLO('yolo11m.pt')
     
     # Entraîner le modèle
     print(f"Démarrage de l'entraînement du modèle YOLO...")

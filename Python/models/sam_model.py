@@ -17,10 +17,10 @@ from ..image_processing.preprocessing import enhanced_preprocess_image
 
 def load_sam_model(model_path="sam2.1_l.pt"):
     """
-    Charge un modèle SAM.
+    Charge un modèle SAM 2.
     
     Args:
-        model_path (str, optional): Chemin du modèle SAM.
+        model_path (str, optional): Chemin du modèle SAM 2.
             Par défaut "sam2.1_l.pt" (modèle large).
     
     Returns:

@@ -14,6 +14,7 @@ from datetime import datetime
 import shutil
 from pathlib import Path
 import torch
+import cv2
 
 from ultralytics import YOLO
 from tensorflow.keras.models import load_model
@@ -22,6 +23,7 @@ from ..image_processing.conversion import process_directory
 from ..image_processing.preprocessing import enhanced_preprocess_image
 from ..models.unet_model import train_unet, predict_with_unet
 from ..gui.annotation_tool import run_annotation_tool
+from ..reporting.reporting import generate_quarto_report
 
 
 class HyphSporeaProcessor:
@@ -587,3 +589,131 @@ class HyphSporeaProcessor:
         
         print(f"Comparaison terminée. Résultats sauvegardés dans {output_dir}")
         return output_dir
+    
+    def run_complete_pipeline(self, input_dir, output_dir=None, model_version=None):
+        """
+        Exécute le pipeline complet de traitement:
+        1. Détection avec SAM 2
+        2. Annotation manuelle (interface)
+        3. Entraînement de YOLO
+        4. Détection sur toutes les images
+        5. Analyse des résultats
+        
+        Args:
+            input_dir (str): Répertoire contenant les images
+            output_dir (str, optional): Répertoire de sortie
+            model_version (str, optional): Version spécifique du modèle à utiliser
+        
+        Returns:
+            dict: Résultats du pipeline
+        """
+        # Étape 1: Conversion TIFF → JPEG si nécessaire
+        jpeg_dir = self.convert_tiff_to_jpeg(input_dir)
+        
+        # Étape 2: Prétraitement des images
+        preprocessed_dir = self.preprocess_dataset(jpeg_dir)
+        
+        # Étape 3: Détection avec SAM 2
+        sam_model_path = get_latest_model_version(self.models_dir, 'sam')
+        if not sam_model_path:
+            sam_model_path = str(self.project_root / "data" / "blank_models" / "sam2.1_l.pt")
+        
+        sam_results = batch_detect_with_sam(
+            sam_model_path,
+            preprocessed_dir,
+            output_dir=self.output_dir / "sam_detections"
+        )
+        
+        # Étape 4: Interface d'annotation pour correction manuelle
+        print("Veuillez annoter manuellement les images en utilisant l'interface graphique.")
+        self.create_annotation_tool()
+        
+        # Étape 5: Entraînement YOLO
+        yolo_base_model = str(self.project_root / "data" / "blank_models" / "yolo11m.pt")
+        data_yaml_path = self.output_dir / "yolo_annotations" / "data.yaml"
+        
+        model_path = self.train_yolo_model(yolo_base_model, data_yaml_path)
+        
+        # Étape 6: Détection sur toutes les images
+        all_results = {}
+        for sample_dir in Path(jpeg_dir).glob("*"):
+            if sample_dir.is_dir():
+                sample_info = get_sample_info_from_path(sample_dir)
+                sample_output = self.output_dir / "processed" / sample_dir.name
+                
+                results = self.process_sample(
+                    str(sample_dir),
+                    model_path,
+                    str(sample_output),
+                    sample_info
+                )
+                
+                all_results[sample_dir.name] = results
+        
+        # Étape 7: Analyse des résultats
+        comparison_dir = self.compare_samples()
+        
+        return {
+            'model_path': model_path,
+            'results': all_results,
+            'comparison_dir': comparison_dir
+        }
+    
+    def generate_report(self, output_format='html'):
+        """
+        Génère un rapport d'analyse au format Quarto.
+        
+        Args:
+            output_format (str, optional): Format de sortie ('html', 'pdf', 'docx'). Par défaut 'html'.
+        
+        Returns:
+            str: Chemin du rapport généré
+        """
+        if not self.results:
+            raise ValueError("Aucun résultat à analyser. Veuillez d'abord traiter des échantillons.")
+        
+        # Créer le répertoire de rapports
+        reports_dir = self.output_dir / "reports"
+        reports_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Nom du fichier de sortie
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = reports_dir / f"analysis_report_{timestamp}.{output_format}"
+        
+        # Préparer les données pour le rapport
+        # Les résultats peuvent contenir des objets qui ne sont pas sérialisables en JSON
+        # Nous allons donc nous assurer que toutes les valeurs sont des types Python de base
+        serializable_results = {}
+        
+        for sample_name, result in self.results.items():
+            serializable_result = {}
+            for key, value in result.items():
+                # Convertir les valeurs numpy en types Python standards
+                if hasattr(value, 'item'):  # Pour les scalaires numpy
+                    serializable_result[key] = value.item()
+                elif hasattr(value, 'tolist'):  # Pour les tableaux numpy
+                    serializable_result[key] = value.tolist()
+                else:
+                    # Tenter de convertir, sinon convertir en chaîne
+                    try:
+                        json.dumps(value)  # Test de sérialisation
+                        serializable_result[key] = value
+                    except (TypeError, OverflowError):
+                        serializable_result[key] = str(value)
+            
+            serializable_results[sample_name] = serializable_result
+        
+        # Générer le rapport
+        try:
+            report_path = generate_quarto_report(
+                serializable_results,
+                str(output_file),
+                title="Analyse de spores d'hyphomycètes"
+            )
+            
+            print(f"Rapport généré: {report_path}")
+            return report_path
+        
+        except Exception as e:
+            print(f"Erreur lors de la génération du rapport: {str(e)}")
+            raise

@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
     # Fichiers de modèles par défaut
     'default_yolo_model': 'yolo_spores_model.pt',
     'default_unet_model': 'unet_spores_model.h5',
-    'default_sam_model': 'sam2.1_b.pt',
+    'default_sam_model': 'sam2.1_l.pt',
     
     # Paramètres d'entrainement
     'yolo_epochs': 100,
@@ -144,3 +144,39 @@ def generate_default_config(output_file):
     """
     config = DEFAULT_CONFIG.copy()
     return save_config(config, output_file)
+
+def get_latest_model_version(models_dir, model_type='yolo'):
+    """
+    Récupère la dernière version du modèle dans le répertoire spécifié.
+    
+    Args:
+        models_dir (str or Path): Répertoire contenant les modèles
+        model_type (str): Type de modèle ('yolo', 'unet', 'sam')
+    
+    Returns:
+        Path: Chemin du modèle le plus récent
+    """
+    models_dir = Path(models_dir)
+    pattern = f"{model_type}_*"
+    
+    # Chercher tous les dossiers de modèles
+    model_dirs = list(models_dir.glob(pattern))
+    
+    if not model_dirs:
+        return None
+    
+    # Trier par date de modification (le plus récent en premier)
+    model_dirs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    
+    # Chercher le fichier de modèle dans le dossier le plus récent
+    if model_type == 'yolo':
+        model_file = model_dirs[0] / 'yolo_spores_model.pt'
+    elif model_type == 'unet':
+        model_file = model_dirs[0] / 'unet_spores_model.h5'
+    elif model_type == 'sam':
+        model_file = model_dirs[0] / 'sam_model.pt'
+    
+    if model_file.exists():
+        return model_file
+    
+    return None

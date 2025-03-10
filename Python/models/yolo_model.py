@@ -14,13 +14,58 @@ from ultralytics import YOLO
 import matplotlib.pyplot as plt
 import numpy as np
 
+def load_yolo_model(path, model="yolo11m.pt", download=True):
+    """
+    Vérifie si un modèle YOLO existe, le télécharge si nécessaire, et renvoie son chemin.
+    
+    Args:
+        path (str): Chemin du répertoire contenant le modèle YOLO.
+        model (str, optional): Nom du modèle YOLO. Par défaut "yolo11m.pt".
+        download (bool, optional): Si True et que le modèle n'existe pas, le télécharge.
+            Par défaut True.
+    
+    Returns:
+        str: Chemin complet du modèle YOLO
+    """
+    
+    # Créer le répertoire s'il n'existe pas
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print(f"Répertoire créé: {path}")
+    
+    # Chemin complet du modèle
+    model_path = os.path.join(path, model)
+    
+    # Vérifier si le modèle existe
+    if not os.path.exists(model_path):
+        print(f"Le modèle {model} n'existe pas dans {path}")
+        
+        if download:
+            print(f"Téléchargement du modèle {model}...")
+            try:
+                # Utiliser l'API YOLO pour télécharger le modèle
+                # Pour YOLO v8, on peut utiliser YOLO(model) qui téléchargera automatiquement si besoin
+                temp_model = YOLO(model)
+                # Sauvegarder le modèle au bon endroit
+                temp_model.model.save(model_path)
+                print(f"Modèle téléchargé et sauvegardé dans {model_path}")
+            except Exception as e:
+                print(f"Erreur lors du téléchargement du modèle: {str(e)}")
+                return None
+        else:
+            print("Téléchargement désactivé, impossible de continuer sans le modèle.")
+            return None
+    
+    return model_path
 
-def train_yolo_model(data_yaml_path, epochs=100, img_size=640, batch_size=16, project_dir=None,
+
+def train_yolo_model(model_path, data_yaml_path, epochs=100, img_size=640, batch_size=16, project_dir=None,
                     patience=20, device=None, output_dir=None):
     """
     Entraîne un modèle YOLO sur les données annotées.
     
     Args:
+        model_path (str): Chemin du modèle YOLO à utiliser. 
         data_yaml_path (str): Chemin du fichier data.yaml contenant les configurations d'entraînement.
         epochs (int, optional): Nombre d'époques d'entraînement. Par défaut 100.
         img_size (int, optional): Taille des images d'entraînement. Par défaut 640.
@@ -52,7 +97,7 @@ def train_yolo_model(data_yaml_path, epochs=100, img_size=640, batch_size=16, pr
         device = '0' if torch.cuda.is_available() else 'cpu'
     
     # Initialiser le modèle YOLO (YOLO11m)
-    model = YOLO('yolo11m.pt')
+    model = YOLO(model_path)
     
     # Entraîner le modèle
     print(f"Démarrage de l'entraînement du modèle YOLO...")

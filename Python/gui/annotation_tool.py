@@ -212,7 +212,9 @@ class SporeAnnotationTool:
                 
                 # Dessiner les contours des objets détectés en BLEU (BGR: B=255, G=0, R=0)
                 contours, _ = cv2.findContours(self.current_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                cv2.drawContours(img_with_contours, contours,  -1, (255, 0, 0), 1)
+                for contour in contours:
+                    x, y, w, h = cv2.boundingRect(contour)
+                    cv2.rectangle(img_with_contours, (x, y), (x+w, y+h), (255, 0, 0), 1)
                 
                 # Afficher les annotations existantes
                 img_name = os.path.basename(self.current_image_path)

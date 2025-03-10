@@ -9,6 +9,7 @@ pour la détection et la segmentation des spores:
 """
 
 from .yolo_model import (
+    load_yolo_model,
     train_yolo_model,
     validate_yolo_model,
     predict_with_yolo,
@@ -36,6 +37,7 @@ from .sam_model import (
 
 __all__ = [
     # YOLO
+    'load_yolo_model',
     'train_yolo_model',
     'validate_yolo_model',
     'predict_with_yolo',

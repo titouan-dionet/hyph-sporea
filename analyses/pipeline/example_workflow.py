@@ -321,7 +321,7 @@ def main():
         return model_path
 
     
-    # ===== Étape 4: Entraînement du modèle YOLO =====
+    # ===== Étape 4b: Entraînement du modèle YOLO =====
     @target(
         workflow=workflow,
         name="train_model",
@@ -338,11 +338,58 @@ def main():
             output_dir=config['models_dir']
         )
     
+    # ===== Étape 4c: Validation du modèle YOLO =====
+    @target(
+        workflow=workflow,
+        name="validate_model",
+        inputs=["train_model"],
+        file_outputs=[config['output_dir'] / "validation"]
+    )
+    def validate_model(model_path):
+        """Valide le modèle YOLO et sauvegarde les résultats"""
+        from Python.models import validate_yolo_model
+        
+        # Définir le répertoire de sortie pour la validation
+        validation_dir = config['output_dir'] / "validation"
+        os.makedirs(validation_dir, exist_ok=True)
+        
+        # Charger le fichier data.yaml
+        data_yaml_path = config['proc_data_dir'] / "yolo_annotations" / "data.yaml"
+        
+        # Valider le modèle
+        results = validate_yolo_model(
+            model_path=model_path,
+            data_yaml_path=str(data_yaml_path),
+            output_dir=str(validation_dir)
+        )
+        
+        # Sauvegarder les résultats en format texte
+        metrics_path = validation_dir / "validation_metrics.txt"
+        with open(metrics_path, 'w') as f:
+            f.write(f"# Validation du modèle YOLO\n\n")
+            f.write(f"Modèle: {model_path}\n")
+            f.write(f"Dataset: {data_yaml_path}\n\n")
+            
+            # Écrire les métriques principales
+            f.write("## Métriques\n\n")
+            # Ajuster selon les métriques retournées par validate_yolo_model
+            for key, value in results.items():
+                if isinstance(value, (int, float)):
+                    f.write(f"{key}: {value:.4f}\n")
+        
+        # Sauvegarder également au format JSON
+        import json
+        json_path = validation_dir / "validation_metrics.json"
+        with open(json_path, 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        return validation_dir
+    
     # ===== Étape 5: Traitement de l'échantillon 1 =====
     @target(
         workflow=workflow,
         name="process_samples",
-        inputs=["train_model"],
+        inputs=["validate_model"],
         file_outputs=[config['output_dir'] / "processed_samples"]
     )
     def process_samples(model_path):

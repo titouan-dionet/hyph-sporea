@@ -13,12 +13,13 @@ from . import image_processing
 from . import models
 from . import gui
 from . import analysis
+from . import reporting  # Nouveau module de reporting
 
 # Import des classes et fonctions principales
 from .core import HyphSporeaProcessor
 
 __version__ = '0.1.0'
-__author__ = 'HYPH-SPOREA Team'
+__author__ = 'Titouan Dionet'
 
 __all__ = [
     'core',
@@ -26,5 +27,6 @@ __all__ = [
     'models',
     'gui',
     'analysis',
+    'reporting',
     'HyphSporeaProcessor'
 ]

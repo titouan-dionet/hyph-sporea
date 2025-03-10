@@ -258,3 +258,106 @@ def load_config(filepath):
     
     with open(filepath, 'r') as f:
         return json.load(f)
+
+def get_latest_model_version(models_dir, model_type='yolo'):
+    """
+    Récupère la dernière version du modèle dans le répertoire spécifié.
+    
+    Args:
+        models_dir (str or Path): Répertoire contenant les modèles
+        model_type (str): Type de modèle ('yolo', 'unet', 'sam')
+    
+    Returns:
+        Path: Chemin du modèle le plus récent
+    """
+    models_dir = Path(models_dir)
+    pattern = f"{model_type}_*"
+    
+    # Chercher tous les dossiers de modèles
+    model_dirs = list(models_dir.glob(pattern))
+    
+    if not model_dirs:
+        # Vérifier s'il existe un modèle standard
+        if model_type == 'yolo':
+            standard_model = models_dir / "yolo_spores_model.pt"
+            if standard_model.exists():
+                return standard_model
+        elif model_type == 'unet':
+            standard_model = models_dir / "unet_spores_model.h5"
+            if standard_model.exists():
+                return standard_model
+        elif model_type == 'sam':
+            standard_model = models_dir / "sam_model.pt"
+            if standard_model.exists():
+                return standard_model
+        
+        return None
+    
+    # Trier par date de modification (le plus récent en premier)
+    model_dirs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    
+    # Chercher le fichier de modèle dans le dossier le plus récent
+    if model_type == 'yolo':
+        model_file = model_dirs[0] / 'yolo_spores_model.pt'
+    elif model_type == 'unet':
+        model_file = model_dirs[0] / 'unet_spores_model.h5'
+    elif model_type == 'sam':
+        model_file = model_dirs[0] / 'sam_model.pt'
+    
+    if model_file.exists():
+        return model_file
+    
+    return None
+
+def measure_performance(func):
+    """
+    Décorateur pour mesurer le temps d'exécution d'une fonction.
+    
+    Args:
+        func (callable): Fonction à mesurer
+    
+    Returns:
+        callable: Fonction décorée
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        print(f"Démarrage de {func.__name__}...")
+        
+        try:
+            result = func(*args, **kwargs)
+            
+            elapsed_time = time.time() - start_time
+            print(f"{func.__name__} terminé en {elapsed_time:.2f} secondes")
+            
+            # Si le premier argument est un objet avec un attribut output_dir,
+            # enregistrer les performances
+            if args and hasattr(args[0], 'output_dir'):
+                obj = args[0]
+                perf_dir = Path(obj.output_dir) / "performance"
+                perf_dir.mkdir(exist_ok=True, parents=True)
+                
+                perf_file = perf_dir / f"{func.__name__}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                
+                # Préparer les données de performance
+                perf_data = {
+                    'function': func.__name__,
+                    'start_time': datetime.fromtimestamp(start_time).isoformat(),
+                    'end_time': datetime.now().isoformat(),
+                    'elapsed_time': elapsed_time,
+                    'args': str([str(arg) for arg in args[1:]]),
+                    'kwargs': str(kwargs)
+                }
+                
+                # Sauvegarder les performances
+                with open(perf_file, 'w') as f:
+                    json.dump(perf_data, f, indent=2)
+            
+            return result
+            
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            print(f"Erreur dans {func.__name__} après {elapsed_time:.2f} secondes: {str(e)}")
+            raise
+    
+    return wrapper

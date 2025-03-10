@@ -16,7 +16,7 @@ from pathlib import Path
 from Python.core import HyphSporeaProcessor
 from Python.core.utils import get_sample_info_from_path
 from Python.image_processing import batch_preprocess_directory, create_binary_masks
-from Python.models import train_yolo_model
+from Python.models import train_yolo_model, load_yolo_model
 
 from workflow import Workflow, target
 from pipeline_config import load_config
@@ -300,17 +300,40 @@ def main():
         
         return yaml_path
     
+    # ===== Étape 4a: Chargement du modèle YOLO =====
+    @target(
+        workflow=workflow,
+        name="load_model",
+        file_inputs=[config['blank_model_dir']],
+        file_outputs=[config['blank_model_dir'] / "yolo11m.pt"]
+    )
+    def load_model():
+        """Vérifie l'existence du modèle YOLO, le télécharge si nécessaire, et renvoie son chemin"""
+        model_path = load_yolo_model(
+            path=str(config['blank_model_dir']),
+            model='yolo11m.pt',
+            download=True
+        )
+        
+        if model_path is None:
+            raise FileNotFoundError("Impossible de charger ou télécharger le modèle YOLO")
+        
+        return model_path
+
+    
     # ===== Étape 4: Entraînement du modèle YOLO =====
     @target(
         workflow=workflow,
         name="train_model",
-        inputs=["annotate_images"],
+        inputs=["load_model", "annotate_images"],
         file_outputs=[config['models_dir'] / "yolo_spores_model.pt"]
     )
-    def train_model(data_yaml_path):
+    def train_model(model_path, data_yaml_path):
         """Entraîne le modèle YOLO"""
+        
         return train_yolo_model(
-            data_yaml_path,
+            model_path = model_path,
+            data_yaml_path = data_yaml_path,
             epochs=5,
             output_dir=config['models_dir']
         )

@@ -30,7 +30,7 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None, intensit
         save (bool, optional): Si True, sauvegarde l'image prétraitée. Par défaut False.
         output_path (str, optional): Chemin de sortie pour l'image prétraitée.
             Requis si save=True.
-        intensity (str, optional): Intensité du prétraitement ('light', 'medium', 'strong'). 
+        intensity (str, optional): Intensité du prétraitement ('very_light', 'light', 'medium', 'strong'). 
             Par défaut 'medium'.
     
     Returns:
@@ -61,7 +61,7 @@ def enhanced_preprocess_image(image_path, save=False, output_path=None, intensit
         thresh_blocksize = 25
         thresh_c = 7
         morph_iterations = 0
-        min_size = 20
+        min_size = 300
     elif intensity == 'medium':
         blur_size = 3
         thresh_blocksize = 15

@@ -11,9 +11,6 @@ import torch
 from pathlib import Path
 import sys
 
-# Ajout du répertoire parent au PATH pour importer les modules du projet
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from Python.core import HyphSporeaProcessor
 
 

@@ -43,12 +43,39 @@ def load_yolo_model(path, model="yolo11m.pt", download=True):
         if download:
             print(f"Téléchargement du modèle {model}...")
             try:
-                # Utiliser l'API YOLO pour télécharger le modèle
-                # Pour YOLO v8, on peut utiliser YOLO(model) qui téléchargera automatiquement si besoin
-                temp_model = YOLO(model)
-                # Sauvegarder le modèle au bon endroit
-                temp_model.model.save(model_path)
-                print(f"Modèle téléchargé et sauvegardé dans {model_path}")
+                # Utiliser une approche plus directe avec torch.hub
+                import torch
+                
+                if model.startswith("yolo"):
+                    # Déterminer la version YOLO appropriée
+                    if "11m" in model:
+                        checkpoint = "yolo11m"  # Pour YOLOv8 11m
+                    elif "8m" in model:
+                        checkpoint = "yolo8m"   # Pour YOLOv8 8m
+                    elif "xl" in model:
+                        checkpoint = "yolov8x"  # Pour YOLOv8 XL
+                    elif "l" in model:
+                        checkpoint = "yolov8l"  # Pour YOLOv8 Large
+                    elif "m" in model:
+                        checkpoint = "yolov8m"  # Pour YOLOv8 Medium
+                    elif "s" in model:
+                        checkpoint = "yolov8s"  # Pour YOLOv8 Small
+                    elif "n" in model:
+                        checkpoint = "yolov8n"  # Pour YOLOv8 Nano
+                    else:
+                        checkpoint = "yolov8n"  # Par défaut: Nano
+                    
+                    # Télécharger via torch hub
+                    model_obj = torch.hub.load('ultralytics/ultralytics', checkpoint)
+                    
+                    # Sauvegarder le modèle
+                    model_obj.save(model_path)
+                    print(f"Modèle téléchargé et sauvegardé dans {model_path}")
+                    
+                    return model_path
+                else:
+                    raise ValueError(f"Type de modèle non reconnu: {model}")
+                    
             except Exception as e:
                 print(f"Erreur lors du téléchargement du modèle: {str(e)}")
                 return None

@@ -199,7 +199,8 @@ class Target:
                 pickle.dump(self.result, f)
             
             # Sauvegarder les données de performance
-            perf_dir = Path(str(self.metadata_path).parent) / "performance"
+            metadata_path = Path(str(self.metadata_path))  # Convertir en Path
+            perf_dir = metadata_path.parent / "performance"
             perf_dir.mkdir(exist_ok=True)
             perf_path = perf_dir / f"{self.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             with open(perf_path, 'w') as f:
@@ -224,7 +225,8 @@ class Target:
             }
             
             # Sauvegarder les données de performance en cas d'échec
-            perf_dir = Path(str(self.metadata_path).parent) / "performance"
+            metadata_path = Path(str(self.metadata_path))  # Convertir en Path
+            perf_dir = metadata_path.parent / "performance"
             perf_dir.mkdir(exist_ok=True)
             perf_path = perf_dir / f"{self.name}_failed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             with open(perf_path, 'w') as f:

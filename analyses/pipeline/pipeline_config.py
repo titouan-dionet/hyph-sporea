@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
     'default_sam_model': 'sam2.1_l.pt',
     
     # Paramètres d'entrainement
-    'yolo_epochs': 100,
+    'yolo_epochs': 5,
     'yolo_batch_size': 16,
     'yolo_image_size': 640,
     

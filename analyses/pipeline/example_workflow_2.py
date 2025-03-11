@@ -14,6 +14,7 @@ import pandas as pd
 from pathlib import Path
 import time
 from datetime import datetime
+import shutil
 
 from Python.core import HyphSporeaProcessor
 from Python.core.utils import get_sample_info_from_path
@@ -21,7 +22,7 @@ from Python.image_processing import batch_preprocess_directory, create_binary_ma
 from Python.models import train_yolo_model, load_yolo_model
 from Python.models.sam_model import load_sam_model, batch_detect_with_sam, combine_sam_detections
 
-from workflow import Workflow, target
+from Python.workflow import Workflow, target
 from pipeline_config import load_config
 
 
@@ -305,6 +306,46 @@ def main():
                                 all_annotations.append((img_file, txt_file))
                                 break
         
+        # Puis, chercher aussi dans jpeg_dir
+        jpeg_dir = config['proc_data_dir'] / "jpeg_images"
+        for exp_dir in jpeg_dir.glob("*"):
+            if not exp_dir.is_dir():
+                continue
+                
+            # Chercher les annotations dans le dossier d'expérience
+            yolo_annotations_dir = exp_dir / "yolo_annotations"
+            if yolo_annotations_dir.exists():
+                # Récupérer les fichiers .txt (annotations) sauf classes.txt
+                for txt_file in yolo_annotations_dir.glob("*.txt"):
+                    if txt_file.stem == 'classes':
+                        continue
+                    
+                    # Chercher l'image correspondante
+                    for ext in ['.jpeg', '.jpg', '.png']:
+                        img_file = yolo_annotations_dir.parent / f"{txt_file.stem}{ext}"
+                        if img_file.exists():
+                            all_annotations.append((img_file, txt_file))
+                            break
+            
+            # Chercher dans les sous-dossiers d'échantillons
+            for sample_dir in exp_dir.glob("*"):
+                if not sample_dir.is_dir():
+                    continue
+                    
+                yolo_annotations_dir = sample_dir / "yolo_annotations"
+                if yolo_annotations_dir.exists():
+                    # Récupérer les fichiers .txt (annotations) sauf classes.txt
+                    for txt_file in yolo_annotations_dir.glob("*.txt"):
+                        if txt_file.stem == 'classes':
+                            continue
+                        
+                        # Chercher l'image correspondante
+                        for ext in ['.jpeg', '.jpg', '.png']:
+                            img_file = yolo_annotations_dir.parent / f"{txt_file.stem}{ext}"
+                            if img_file.exists():
+                                all_annotations.append((img_file, txt_file))
+                                break
+        
         if not all_annotations:
             raise FileNotFoundError(
                 "Aucune annotation trouvée. Assurez-vous d'avoir annoté des images et converti en format YOLO."
@@ -376,22 +417,69 @@ def main():
         workflow=workflow,
         name="load_model",
         file_inputs=[config['blank_model_dir']],
-        file_outputs=[config['blank_model_dir'] / "yolo11m.pt"]
+        file_outputs=[config['blank_model_dir'] / "yolov8n.pt"]  # Changé à yolov8n.pt
     )
     def load_model():
         """Vérifie l'existence du modèle YOLO, le télécharge si nécessaire, et renvoie son chemin"""
-        model_path = load_yolo_model(
-            path=str(config['blank_model_dir']),
-            model='yolo11m.pt',
-            download=True
-        )
+        # Utiliser un modèle plus petit et plus fiable (yolov8n au lieu de yolo11m)
+        model_name = "yolov8n.pt"
+        model_path = config['blank_model_dir'] / model_name
         
-        if model_path is None:
-            raise FileNotFoundError("Impossible de charger ou télécharger le modèle YOLO")
+        # Vérifier si le modèle existe déjà
+        if model_path.exists():
+            print(f"Modèle trouvé: {model_path}")
+            return str(model_path)
         
-        return model_path
+        # Si le modèle n'existe pas, utiliser l'API YOLO directement
+        try:
+            print(f"Le modèle {model_path} n'existe pas. Téléchargement automatique...")
+            
+            # Créer le répertoire si nécessaire
+            model_path.parent.mkdir(exist_ok=True, parents=True)
+            
+            # Utiliser l'API YOLO directement
+            from ultralytics import YOLO
+            
+            # Initialiser le modèle (cela le télécharge automatiquement)
+            model = YOLO(model_name)
+            
+            # Sauvegarder le modèle au chemin souhaité
+            model_file = str(model_path)
+            print(f"Sauvegarde du modèle dans {model_file}")
+            
+            # Exporter/sauvegarder le modèle
+            success = model.export(format="pt", imgsz=640)
+            
+            # Copier le fichier vers l'emplacement souhaité
+            import shutil
+            source_path = Path(model_name)
+            if source_path.exists():
+                shutil.copy(source_path, model_path)
+                print(f"Modèle copié dans {model_path}")
+            else:
+                # Si le fichier n'est pas au chemin racine, le chercher dans le répertoire courant
+                for file in Path().glob("*.pt"):
+                    if file.name == model_name:
+                        shutil.copy(file, model_path)
+                        print(f"Modèle trouvé et copié dans {model_path}")
+                        break
+            
+            # Vérifier que le modèle existe maintenant
+            if model_path.exists():
+                print(f"Vérification réussie: modèle disponible dans {model_path}")
+                return str(model_path)
+            else:
+                # Si le modèle n'a pas été sauvegardé au bon endroit, utiliser le modèle chargé en mémoire
+                print("Le modèle n'a pas été sauvegardé au chemin spécifié, mais est chargé en mémoire.")
+                return model_name  # Retourner le nom qui peut être utilisé directement par YOLO
+            
+        except Exception as e:
+            print(f"Erreur lors du téléchargement du modèle: {str(e)}")
+            
+            # En dernier recours, utiliser directement le nom du modèle
+            print("Tentative d'utilisation directe du modèle via le nom...")
+            return model_name  # Retourner simplement le nom du modèle que YOLO recherchera
 
-    
     # ===== Étape 4b: Entraînement du modèle YOLO =====
     @target(
         workflow=workflow,
@@ -405,6 +493,12 @@ def main():
         # Ajouter un timestamp pour le versionnage des modèles
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = config['models_dir'] / f"yolo_model_{timestamp}"
+        
+        # Vérifier si model_path est un chemin de fichier ou un nom de modèle
+        if os.path.exists(model_path):
+            print(f"Utilisation du modèle local: {model_path}")
+        else:
+            print(f"Utilisation du modèle par nom: {model_path}")
         
         # Entraîner le modèle YOLO
         final_model_path = train_yolo_model(
@@ -447,6 +541,30 @@ def main():
             output_dir=str(validation_dir)
         )
         
+        # Convertir les résultats en dictionnaire 
+        # en utilisant la méthode results_dict() de DetMetrics
+        if hasattr(results, 'results_dict'):
+            results_dict = results.results_dict()
+        else:
+            # Fallback si results est déjà un dictionnaire ou un autre type
+            results_dict = {}
+            try:
+                # Essayer d'obtenir les valeurs importantes
+                if hasattr(results, 'mean_results'):
+                    # Créer un dictionnaire à partir des résultats moyens
+                    keys = results.keys if hasattr(results, 'keys') else ["precision", "recall", "mAP50", "mAP"]
+                    values = results.mean_results()
+                    results_dict = dict(zip(keys, values))
+                elif hasattr(results, 'maps'):
+                    # Récupérer les mAP values
+                    results_dict = {'maps': results.maps}
+                elif hasattr(results, 'fitness'):
+                    # Au moins récupérer le score de fitness
+                    results_dict = {'fitness': results.fitness()}
+            except Exception as e:
+                print(f"Impossible d'extraire les résultats de validation: {str(e)}")
+                results_dict = {"error": str(e)}
+        
         # Sauvegarder les résultats en format texte
         metrics_path = validation_dir / "validation_metrics.txt"
         with open(metrics_path, 'w') as f:
@@ -456,16 +574,26 @@ def main():
             
             # Écrire les métriques principales
             f.write("## Métriques\n\n")
-            # Ajuster selon les métriques retournées par validate_yolo_model
-            for key, value in results.items():
+            for key, value in results_dict.items():
                 if isinstance(value, (int, float)):
                     f.write(f"{key}: {value:.4f}\n")
+                else:
+                    f.write(f"{key}: {value}\n")
         
         # Sauvegarder également au format JSON
         import json
         json_path = validation_dir / "validation_metrics.json"
+        
+        # Convertir tous les valeurs non-sérialisables en chaînes
+        serializable_results = {}
+        for key, value in results_dict.items():
+            if isinstance(value, (int, float, str, bool, list, dict, type(None))):
+                serializable_results[key] = value
+            else:
+                serializable_results[key] = str(value)
+        
         with open(json_path, 'w') as f:
-            json.dump(results, f, indent=2)
+            json.dump(serializable_results, f, indent=2)
         
         return validation_dir
     

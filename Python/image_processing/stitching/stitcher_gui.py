@@ -554,6 +554,14 @@ class StitcherGUI:
         self.log_text.see(tk.END)
         self.log_text.config(state=tk.DISABLED)
         self.root.update()
+        
+    def add_separator(self):
+        """Ajoute un séparateur (ligne vide) dans le journal des opérations"""
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.insert(tk.END, "\n")
+        self.log_text.see(tk.END)
+        self.log_text.config(state=tk.DISABLED)
+        self.root.update()
     
     def format_time(self, seconds):
         """Formate un temps en secondes en une chaîne lisible"""
@@ -687,6 +695,9 @@ class StitcherGUI:
                                   f"Chevauchement vertical: {v_overlap} pixels\n\n"
                                   f"Temps d'exécution: {execution_time_str}\n"
                                   f"Résultats sauvegardés dans:\n{output_file}")
+                
+                # Après les messages de succès
+                self.add_separator()  # Ajouter un séparateur pour la prochaine analyse
             
             except Exception as e:
                 self.log(f"Erreur lors de la détection: {str(e)}")
@@ -878,7 +889,10 @@ class StitcherGUI:
                 messagebox.showinfo("Assemblage terminé", 
                                   f"Temps d'exécution: {execution_time_str}\n\n"
                                   f"Image assemblée sauvegardée dans:\n{output_path}")
-            
+                
+                # Après les messages de succès
+                self.add_separator()  # Ajouter un séparateur pour la prochaine analyse
+
             except Exception as e:
                 self.log(f"Erreur lors de l'assemblage: {str(e)}")
                 self.set_status(f"Erreur: {str(e)}")

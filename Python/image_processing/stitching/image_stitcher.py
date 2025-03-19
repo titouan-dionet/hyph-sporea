@@ -54,9 +54,9 @@ def parse_grid_file(grid_file_path):
     return position_dict, (rows, cols)
 
 
-def detect_overlap(image1, image2, direction='horizontal', max_overlap=300, method=cv2.TM_CCOEFF_NORMED):
+def detect_overlap(image1, image2, direction='horizontal', max_overlap=200, method=cv2.TM_CCOEFF_NORMED):
     """
-    Détecte le chevauchement entre deux images adjacentes.
+    Détecte le chevauchement entre deux images adjacentes avec une précision améliorée.
     
     Args:
         image1 (numpy.ndarray): Première image
@@ -70,50 +70,82 @@ def detect_overlap(image1, image2, direction='horizontal', max_overlap=300, meth
     """
     h, w = image1.shape[:2]
     
-    if direction == 'horizontal':
-        # Prendre une zone plus large pour la recherche dans l'image 2
-        template = image1[:, w-max_overlap:w]
-        search_area = image2[:, 0:max_overlap*2]
-    else:  # vertical
-        template = image1[h-max_overlap:h, :]
-        search_area = image2[0:max_overlap*2, :]
-    
-    # Conversion en niveaux de gris
-    if len(template.shape) == 3:
-        template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-        search_area_gray = cv2.cvtColor(search_area, cv2.COLOR_BGR2GRAY)
+    # Appliquer un prétraitement pour améliorer la précision de la détection
+    # Convertir en niveaux de gris
+    if len(image1.shape) == 3:
+        gray1 = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
+        gray2 = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
     else:
-        template_gray = template
-        search_area_gray = search_area
+        gray1 = image1.copy()
+        gray2 = image2.copy()
     
-    # Amélioration du contraste pour une meilleure détection
-    template_gray = cv2.equalizeHist(template_gray)
-    search_area_gray = cv2.equalizeHist(search_area_gray)
+    # Appliquer une égalisation d'histogramme pour améliorer le contraste
+    gray1 = cv2.equalizeHist(gray1)
+    gray2 = cv2.equalizeHist(gray2)
     
-    # Tester plusieurs méthodes de correspondance et garder celle avec le score le plus élevé
+    # Appliquer un filtre Sobel pour détecter les bords (améliore la correspondance)
+    # Le filtre Sobel rend les caractéristiques structurelles plus distinctes
+    sobelx1 = cv2.Sobel(gray1, cv2.CV_64F, 1, 0, ksize=3)
+    sobely1 = cv2.Sobel(gray1, cv2.CV_64F, 0, 1, ksize=3)
+    sobelx2 = cv2.Sobel(gray2, cv2.CV_64F, 1, 0, ksize=3)
+    sobely2 = cv2.Sobel(gray2, cv2.CV_64F, 0, 1, ksize=3)
+    
+    # Utiliser principalement le gradient dans la direction perpendiculaire au chevauchement
+    if direction == 'horizontal':
+        sobel1 = cv2.convertScaleAbs(sobelx1)  # Gradient horizontal pour chevauchement horizontal
+        sobel2 = cv2.convertScaleAbs(sobelx2)
+    else:  # vertical
+        sobel1 = cv2.convertScaleAbs(sobely1)  # Gradient vertical pour chevauchement vertical
+        sobel2 = cv2.convertScaleAbs(sobely2)
+    
+    # Définir les régions à comparer
+    if direction == 'horizontal':
+        # Prendre la partie droite de la première image
+        # Réduire légèrement la taille du template pour plus de robustesse
+        template_size = int(max_overlap * 0.95)  # Réduction légère pour éviter la surestimation
+        template = sobel1[:, w-template_size:w]
+        # Chercher dans la partie gauche de la deuxième image
+        search_area = sobel2[:, 0:max_overlap*2]
+    else:  # vertical
+        # Prendre la partie inférieure de la première image
+        template_size = int(max_overlap * 0.95)
+        template = sobel1[h-template_size:h, :]
+        # Chercher dans la partie supérieure de la deuxième image
+        search_area = sobel2[0:max_overlap*2, :]
+    
+    # Affiner la correspondance à l'aide de plusieurs méthodes
     methods = [cv2.TM_CCOEFF_NORMED, cv2.TM_CCORR_NORMED]
     best_overlap = 0
-    best_score = -1
+    best_confidence = -1
     
     for mtd in methods:
-        result = cv2.matchTemplate(search_area_gray, template_gray, mtd)
-        _, score, _, max_loc = cv2.minMaxLoc(result)
+        # Appliquer la correspondance de modèle
+        result = cv2.matchTemplate(search_area, template, mtd)
+        _, confidence, _, max_loc = cv2.minMaxLoc(result)
         
-        if mtd == cv2.TM_CCOEFF_NORMED:
-            if direction == 'horizontal':
-                overlap = max_overlap - max_loc[0]
-            else:
-                overlap = max_overlap - max_loc[1]
-                
-            if score > best_score:
-                best_score = score
-                best_overlap = overlap
+        # Calculer l'overlap
+        if direction == 'horizontal':
+            overlap = template_size - max_loc[0]
+        else:  # vertical
+            overlap = template_size - max_loc[1]
+        
+        # Prendre l'overlap avec la meilleure confiance de correspondance
+        if confidence > best_confidence:
+            best_confidence = confidence
+            best_overlap = overlap
     
-    # Ajout d'un facteur de correction (5-10% pour compenser l'imprécision)
-    correction_factor = 1.1  # 10% de plus
-    best_overlap = int(best_overlap * correction_factor)
+    # Ajuster le résultat avec un facteur de correction pour compenser la réduction
+    # du template et corriger toute sous-estimation
+    correction_factor = 0.95  # Compenser la réduction du template (légèrement inférieur à 1 pour réduire l'overlap)
+    adjusted_overlap = int(best_overlap * correction_factor)
     
-    return best_overlap
+    # S'assurer que l'overlap est dans les limites raisonnables
+    if adjusted_overlap < 0:
+        adjusted_overlap = 0
+    elif adjusted_overlap > max_overlap:
+        adjusted_overlap = max_overlap
+    
+    return adjusted_overlap
 
 
 def estimate_overlap_from_sample(image_folder, pattern, num_samples=10, max_overlap=200):

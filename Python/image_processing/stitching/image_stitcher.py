@@ -368,9 +368,13 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
     first_image = cv2.imread(next(iter(image_files.values())))
     img_height, img_width = first_image.shape[:2]
     
+    # Calcul du chevauchement total à partir des valeurs par côté
+    total_h_overlap = h_overlap * 2  # Chevauchement horizontal total
+    total_v_overlap = v_overlap * 2  # Chevauchement vertical total
+    
     # Calculer les dimensions de l'image finale
-    effective_width = img_width - h_overlap
-    effective_height = img_height - v_overlap
+    effective_width = img_width - total_h_overlap  # Largeur effective après chevauchement total
+    effective_height = img_height - total_v_overlap  # Hauteur effective après chevauchement total
     
     # Trouver les limites de la grille (min et max row/col)
     min_row = min(pos[0] for pos in position_dict.values())
@@ -379,8 +383,8 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
     max_col = max(pos[1] for pos in position_dict.values())
     
     # Calculer les dimensions finales de l'image
-    final_width = effective_width * (max_col - min_col + 1) + h_overlap
-    final_height = effective_height * (max_row - min_row + 1) + v_overlap
+    final_width = effective_width * (max_col - min_col + 1) + total_h_overlap
+    final_height = effective_height * (max_row - min_row + 1) + total_v_overlap
     
     # Créer une image vide pour le résultat
     # Utiliser des valeurs de fond blanc

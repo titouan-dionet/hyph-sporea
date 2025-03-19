@@ -54,7 +54,7 @@ def parse_grid_file(grid_file_path):
     return position_dict, (rows, cols)
 
 
-def detect_overlap(image1, image2, direction='horizontal', max_overlap=200, method=cv2.TM_CCOEFF_NORMED):
+def detect_overlap(image1, image2, direction='horizontal', max_overlap=300, method=cv2.TM_CCOEFF_NORMED):
     """
     Détecte le chevauchement entre deux images adjacentes.
     
@@ -71,17 +71,14 @@ def detect_overlap(image1, image2, direction='horizontal', max_overlap=200, meth
     h, w = image1.shape[:2]
     
     if direction == 'horizontal':
-        # Prendre la partie droite de la première image
+        # Prendre une zone plus large pour la recherche dans l'image 2
         template = image1[:, w-max_overlap:w]
-        # Chercher dans la partie gauche de la deuxième image
         search_area = image2[:, 0:max_overlap*2]
     else:  # vertical
-        # Prendre la partie inférieure de la première image
         template = image1[h-max_overlap:h, :]
-        # Chercher dans la partie supérieure de la deuxième image
         search_area = image2[0:max_overlap*2, :]
     
-    # Convertir en niveaux de gris pour la correspondance de modèle
+    # Conversion en niveaux de gris
     if len(template.shape) == 3:
         template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
         search_area_gray = cv2.cvtColor(search_area, cv2.COLOR_BGR2GRAY)
@@ -89,18 +86,34 @@ def detect_overlap(image1, image2, direction='horizontal', max_overlap=200, meth
         template_gray = template
         search_area_gray = search_area
     
-    # Appliquer la correspondance de modèle
-    result = cv2.matchTemplate(search_area_gray, template_gray, method)
-    _, _, _, max_loc = cv2.minMaxLoc(result)
+    # Amélioration du contraste pour une meilleure détection
+    template_gray = cv2.equalizeHist(template_gray)
+    search_area_gray = cv2.equalizeHist(search_area_gray)
     
-    if direction == 'horizontal':
-        # Le chevauchement est la distance entre le bord droit et la meilleure correspondance
-        overlap = max_overlap - max_loc[0]
-    else:  # vertical
-        # Le chevauchement est la distance entre le bord inférieur et la meilleure correspondance
-        overlap = max_overlap - max_loc[1]
+    # Tester plusieurs méthodes de correspondance et garder celle avec le score le plus élevé
+    methods = [cv2.TM_CCOEFF_NORMED, cv2.TM_CCORR_NORMED]
+    best_overlap = 0
+    best_score = -1
     
-    return overlap
+    for mtd in methods:
+        result = cv2.matchTemplate(search_area_gray, template_gray, mtd)
+        _, score, _, max_loc = cv2.minMaxLoc(result)
+        
+        if mtd == cv2.TM_CCOEFF_NORMED:
+            if direction == 'horizontal':
+                overlap = max_overlap - max_loc[0]
+            else:
+                overlap = max_overlap - max_loc[1]
+                
+            if score > best_score:
+                best_score = score
+                best_overlap = overlap
+    
+    # Ajout d'un facteur de correction (5-10% pour compenser l'imprécision)
+    correction_factor = 1.1  # 10% de plus
+    best_overlap = int(best_overlap * correction_factor)
+    
+    return best_overlap
 
 
 def estimate_overlap_from_sample(image_folder, pattern, num_samples=10, max_overlap=200):

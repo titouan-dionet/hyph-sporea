@@ -38,7 +38,7 @@ class StitcherGUI:
         """Initialise l'interface graphique"""
         self.root = root
         self.root.title("Assemblage d'images HYPH-SPOREA")
-        self.root.geometry("800x700")  # Augmenter la hauteur pour les options supplémentaires
+        self.root.geometry("1100x700")  # Augmenter la hauteur pour les options supplémentaires
         self.root.minsize(700, 600)
         
         # Variables pour les entrées utilisateur
@@ -81,8 +81,18 @@ class StitcherGUI:
         style = ttk.Style()
         style.configure("Title.TLabel", font=("Helvetica", 11, "bold"))
         
+        # Créer deux panneaux côte à côte
+        left_panel = ttk.Frame(main_frame)
+        right_panel = ttk.Frame(main_frame)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        # =======================================================================
+        # PANNEAU GAUCHE - Options de configuration
+        # =======================================================================
+        
         # Section 1: Sélection de fichiers
-        file_frame = ttk.LabelFrame(main_frame, text="Sélection des fichiers", padding="10")
+        file_frame = ttk.LabelFrame(left_panel, text="Sélection des fichiers", padding="10")
         file_frame.pack(fill=tk.X, pady=5)
         
         # Dossier d'images
@@ -108,7 +118,7 @@ class StitcherGUI:
         file_frame.columnconfigure(1, weight=1)
         
         # Section 2: Options d'assemblage
-        options_frame = ttk.LabelFrame(main_frame, text="Options d'assemblage", padding="10")
+        options_frame = ttk.LabelFrame(left_panel, text="Options d'assemblage", padding="10")
         options_frame.pack(fill=tk.X, pady=5)
         
         # Nom de l'échantillon
@@ -181,7 +191,7 @@ class StitcherGUI:
         ttk.Label(options_frame, text="(0.0104 pouces = 0.264 mm)").grid(row=3, column=2, sticky=tk.W, pady=2)
         
         # Section 3: Options de visualisation
-        grid_frame = ttk.LabelFrame(main_frame, text="Options de visualisation", padding="10")
+        grid_frame = ttk.LabelFrame(left_panel, text="Options de visualisation", padding="10")
         grid_frame.pack(fill=tk.X, pady=5)
         
         # Option d'affichage de la grille
@@ -241,7 +251,7 @@ class StitcherGUI:
         self.toggle_overlap_fields()
         
         # Section 4: Actions
-        actions_frame = ttk.Frame(main_frame, padding="10")
+        actions_frame = ttk.Frame(left_panel, padding="10")
         actions_frame.pack(fill=tk.X, pady=10)
         
         # Boutons d'action
@@ -259,28 +269,16 @@ class StitcherGUI:
             width=25
         ).pack(side=tk.LEFT, padx=5)
         
-        # Bouton Quitter
-        ttk.Button(
-            actions_frame, 
-            text="Fin", 
-            command=self.quit_app,
-            width=10
-        ).pack(side=tk.RIGHT, padx=5)
-        
-        # Bouton pour effacer le journal
-        ttk.Button(
-            actions_frame, 
-            text="Effacer journal", 
-            command=self.clear_log,
-            width=15
-        ).pack(side=tk.RIGHT, padx=5)
+        # =======================================================================
+        # PANNEAU DROIT - Journal et statut
+        # =======================================================================
         
         # Section 5: Journal des opérations
-        log_frame = ttk.LabelFrame(main_frame, text="Journal des opérations", padding="10")
+        log_frame = ttk.LabelFrame(right_panel, text="Journal des opérations", padding="10")
         log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Zone de texte pour le journal
-        self.log_text = tk.Text(log_frame, wrap=tk.WORD, height=10)
+        self.log_text = tk.Text(log_frame, wrap=tk.WORD)
         self.log_text.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
         
         # Barre de défilement
@@ -291,15 +289,38 @@ class StitcherGUI:
         # Désactiver la modification directe du journal
         self.log_text.config(state=tk.DISABLED)
         
+        # Boutons du journal
+        journal_buttons_frame = ttk.Frame(right_panel, padding="5")
+        journal_buttons_frame.pack(fill=tk.X, pady=5)
+        
+        # Bouton pour effacer le journal
+        ttk.Button(
+            journal_buttons_frame, 
+            text="Effacer journal", 
+            command=self.clear_log,
+            width=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Bouton Quitter
+        ttk.Button(
+            journal_buttons_frame, 
+            text="Fin", 
+            command=self.quit_app,
+            width=10
+        ).pack(side=tk.RIGHT, padx=5)
+        
         # Barre de statut
+        status_frame = ttk.Frame(right_panel, padding="5")
+        status_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=5)
+        
         self.status_var = tk.StringVar(value="Prêt")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
-        status_bar.pack(fill=tk.X, side=tk.BOTTOM, pady=5)
+        status_bar = ttk.Label(status_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
+        status_bar.pack(fill=tk.X, side=tk.BOTTOM, pady=2)
         
         # Barre de progression
         self.progress_var = tk.DoubleVar(value=0.0)
-        self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100)
-        self.progress_bar.pack(fill=tk.X, side=tk.BOTTOM, pady=5)
+        self.progress_bar = ttk.Progressbar(status_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.pack(fill=tk.X, side=tk.BOTTOM, pady=2)
         
         # Configurer les callbacks pour les mises à jour de l'interface
         self.grid_alpha.trace_add("write", self.update_grid_alpha_display)

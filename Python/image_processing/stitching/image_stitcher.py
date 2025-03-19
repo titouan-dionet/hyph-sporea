@@ -299,7 +299,7 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
     Returns:
         numpy.ndarray: Image assemblée
     """
-    # Déterminer le pattern en fonction du format d'image
+    # Déterminer les extensions en fonction du format d'image
     file_ext_list = [".tif", ".tiff"] if use_tiff else [".jpeg", ".jpg"]
     
     # Si le nom de l'échantillon n'est pas spécifié, essayer de le déterminer
@@ -316,12 +316,16 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
         first_file = files[0]
         sample_name = "_".join(first_file.split("_")[:-1])
     
-    # Lister toutes les images correspondant au motif
+    # Lister toutes les images correspondant au motif pour chaque extension
     image_files = {}
     for ext in file_ext_list:
-        pattern = f"{sample_name}_*{ext}"
         for f in os.listdir(image_folder):
-            if not re.match(pattern, f):
+            if not f.lower().endswith(ext):
+                continue
+                
+            # Vérifier si le fichier correspond au motif du nom d'échantillon
+            name_parts = f.split('_')
+            if len(name_parts) < 2 or "_".join(name_parts[:-1]) != sample_name:
                 continue
             
             # Extraire le numéro d'image

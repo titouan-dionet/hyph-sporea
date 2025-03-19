@@ -52,6 +52,19 @@ def parse_args():
     parser.add_argument("--num_samples", type=int, default=20,
                       help="Nombre de paires d'images à échantillonner pour la détection d'overlap")
     
+    # Nouvelles options pour la grille et les numéros
+    parser.add_argument("--show_grid", action="store_true",
+                      help="Afficher une grille entre les images")
+    parser.add_argument("--grid_color", type=str, default="black",
+                      choices=["black", "white", "red", "green", "blue"],
+                      help="Couleur de la grille")
+    parser.add_argument("--grid_alpha", type=float, default=0.4,
+                      help="Transparence de la grille (0.0-1.0)")
+    parser.add_argument("--grid_thickness", type=int, default=2,
+                      help="Épaisseur des lignes de la grille en pixels")
+    parser.add_argument("--show_numbers", action="store_true",
+                      help="Afficher les numéros d'image dans le coin supérieur gauche")
+    
     return parser.parse_args()
 
 
@@ -108,6 +121,16 @@ def main():
             print(f"Erreur lors de la détection automatique du chevauchement: {str(e)}")
             print("Utilisation des valeurs par défaut.")
     
+    # Convertir les noms de couleur en tuples RGB pour OpenCV
+    color_map = {
+        "black": (0, 0, 0),
+        "white": (255, 255, 255),
+        "red": (0, 0, 255),  # BGR pour OpenCV
+        "green": (0, 255, 0),
+        "blue": (255, 0, 0)
+    }
+    grid_color = color_map.get(args.grid_color, (0, 0, 0))
+    
     # Exécuter l'assemblage d'images
     try:
         result = stitch_images(
@@ -118,7 +141,14 @@ def main():
             v_overlap=args.v_overlap,
             sample_name=args.sample_name,
             pixel_size_mm=args.pixel_size,
-            use_tiff=not args.use_jpeg
+            use_tiff=not args.use_jpeg,
+            show_grid=args.show_grid,
+            grid_color=grid_color,
+            grid_alpha=args.grid_alpha,
+            grid_thickness=args.grid_thickness,
+            show_numbers=args.show_numbers,
+            numbers_color=grid_color,  # Même couleur que la grille
+            numbers_alpha=args.grid_alpha  # Même transparence que la grille
         )
         
         print(f"\nAssemblage réussi!")
@@ -136,6 +166,13 @@ def main():
                 print(f"- Dimensions (pixels): {info.get('image_dimensions', 'N/A')}")
                 print(f"- Dimensions physiques: {info.get('physical_dimensions', 'N/A')}")
                 print(f"- Images traitées: {info.get('processed_count', 0)}/{info.get('original_count', 0)}")
+                
+                # Afficher les options de visualisation activées
+                if args.show_grid or args.show_numbers:
+                    print("- Options visuelles activées: " + 
+                         (f"Grille ({args.grid_color}, {args.grid_alpha*100:.0f}%)" if args.show_grid else "") +
+                         (" + " if args.show_grid and args.show_numbers else "") +
+                         (f"Numéros d'image" if args.show_numbers else ""))
             except Exception:
                 pass
         

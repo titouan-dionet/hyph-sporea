@@ -172,10 +172,56 @@ class StitcherGUI:
         ).grid(row=3, column=1, sticky=tk.W, pady=2)
         ttk.Label(options_frame, text="(0.0104 pouces = 0.264 mm)").grid(row=3, column=2, sticky=tk.W, pady=2)
         
+        # Section 3: Options de visualisation
+        grid_frame = ttk.LabelFrame(main_frame, text="Options de visualisation", padding="10")
+        grid_frame.pack(fill=tk.X, pady=5)
+        
+        # Option d'affichage de la grille
+        ttk.Checkbutton(
+            grid_frame,
+            text="Afficher une grille entre les images",
+            variable=self.show_grid
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
+        # Couleur de la grille
+        ttk.Label(grid_frame, text="Couleur de la grille:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        grid_color_frame = ttk.Frame(grid_frame)
+        grid_color_frame.grid(row=1, column=1, sticky=tk.W, pady=2)
+        
+        # Options de couleur pour la grille (noir, blanc, rouge, vert, bleu)
+        ttk.Radiobutton(grid_color_frame, text="Noir", variable=self.grid_color, value="black").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(grid_color_frame, text="Blanc", variable=self.grid_color, value="white").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(grid_color_frame, text="Rouge", variable=self.grid_color, value="red").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(grid_color_frame, text="Vert", variable=self.grid_color, value="green").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(grid_color_frame, text="Bleu", variable=self.grid_color, value="blue").pack(side=tk.LEFT, padx=5)
+        
+        # Transparence de la grille
+        ttk.Label(grid_frame, text="Transparence de la grille (%):").grid(row=2, column=0, sticky=tk.W, pady=2)
+        grid_alpha_frame = ttk.Frame(grid_frame)
+        grid_alpha_frame.grid(row=2, column=1, sticky=tk.W, pady=2)
+        
+        self.grid_alpha_slider = ttk.Scale(
+            grid_alpha_frame,
+            from_=0,
+            to=100,
+            orient=tk.HORIZONTAL,
+            variable=self.grid_alpha,
+            length=200
+        )
+        self.grid_alpha_slider.pack(side=tk.LEFT, padx=5)
+        ttk.Label(grid_alpha_frame, textvariable=self.grid_alpha_display).pack(side=tk.LEFT, padx=5)
+        
+        # Option d'affichage des numéros d'image
+        ttk.Checkbutton(
+            grid_frame,
+            text="Afficher les numéros d'image",
+            variable=self.show_numbers
+        ).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
         # Configurer état initial des champs d'overlap
         self.toggle_overlap_fields()
         
-        # Section 3: Actions
+        # Section 4: Actions
         actions_frame = ttk.Frame(main_frame, padding="10")
         actions_frame.pack(fill=tk.X, pady=10)
         
@@ -210,7 +256,7 @@ class StitcherGUI:
             width=15
         ).pack(side=tk.RIGHT, padx=5)
         
-        # Section 4: Journal des opérations
+        # Section 5: Journal des opérations
         log_frame = ttk.LabelFrame(main_frame, text="Journal des opérations", padding="10")
         log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
@@ -235,6 +281,9 @@ class StitcherGUI:
         self.progress_var = tk.DoubleVar(value=0.0)
         self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100)
         self.progress_bar.pack(fill=tk.X, side=tk.BOTTOM, pady=5)
+        
+        # Configurer les callbacks pour les mises à jour de l'interface
+        self.grid_alpha.trace_add("write", self.update_grid_alpha_display)
     
     def browse_input_dir(self):
         """Ouvre un dialogue pour sélectionner le dossier d'images"""

@@ -14,6 +14,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import json
+from datetime import datetime
 
 
 def parse_grid_file(grid_file_path):
@@ -418,7 +419,9 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
         "physical_dimensions": f"{final_width * pixel_size_mm:.1f}x{final_height * pixel_size_mm:.1f}mm",
         "h_overlap": h_overlap,
         "v_overlap": v_overlap,
-        "pixel_size_mm": pixel_size_mm
+        "pixel_size_mm": pixel_size_mm,
+        "source_directory": image_folder,  # Ajout du chemin source
+        "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Ajout de la date/heure
     }
     
     # Sauvegarder les informations dans un fichier JSON
@@ -444,19 +447,22 @@ def run_overlap_detection(image_folder, output_file=None, num_samples=20, max_ov
     Returns:
         tuple: (horizontal_overlap, vertical_overlap) estimations moyennes
     """
-    # Déterminer le pattern en fonction du format d'image
-    file_ext = ".tiff" if use_tiff else ".jpeg"
+    # Déterminer les extensions en fonction du format d'image
+    file_extensions = [".tif", ".tiff"] if use_tiff else [".jpeg", ".jpg"]
     
     # Trouver le premier fichier pour déterminer le motif du nom
-    files = [f for f in os.listdir(image_folder) if f.endswith(file_ext)]
+    files = []
+    for ext in file_extensions:
+        files.extend([f for f in os.listdir(image_folder) if f.lower().endswith(ext)])
+    
     if not files:
-        raise ValueError(f"Aucun fichier {file_ext} trouvé dans le dossier {image_folder}")
+        raise ValueError(f"Aucun fichier {', '.join(file_extensions)} trouvé dans le dossier {image_folder}")
     
     # Extraire le nom de l'échantillon (ex: "T1_ALAC")
     first_file = files[0]
     sample_name = "_".join(first_file.split("_")[:-1])
     
-    pattern = f"{sample_name}_*{file_ext}"
+    pattern = f"{sample_name}_*"
     
     print(f"Détection du chevauchement pour l'échantillon {sample_name}...")
     h_overlap, v_overlap = estimate_overlap_from_sample(
@@ -470,7 +476,9 @@ def run_overlap_detection(image_folder, output_file=None, num_samples=20, max_ov
             "horizontal_overlap": h_overlap,
             "vertical_overlap": v_overlap,
             "num_samples": num_samples,
-            "image_format": "TIFF" if use_tiff else "JPEG"
+            "image_format": "TIFF" if use_tiff else "JPEG",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "source_directory": image_folder
         }
         
         with open(output_file, 'w') as f:

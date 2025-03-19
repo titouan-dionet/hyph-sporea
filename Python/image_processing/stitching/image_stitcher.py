@@ -283,7 +283,9 @@ def estimate_overlap_from_sample(image_folder, pattern, num_samples=10, max_over
 
 
 def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_overlap=93, 
-                 sample_name=None, pixel_size_mm=0.264, use_tiff=True):
+                 sample_name=None, pixel_size_mm=0.264, use_tiff=True, 
+                 show_grid=False, grid_color=(0, 0, 0), grid_alpha=0.4, grid_thickness=2,
+                 show_numbers=False, numbers_color=(0, 0, 0), numbers_alpha=0.4):
     """
     Assemble les images en une seule image complète en utilisant la grille spécifiée.
     
@@ -296,6 +298,13 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
         sample_name (str, optional): Nom de l'échantillon, extrait du nom de fichier si None
         pixel_size_mm (float, optional): Taille du pixel en mm (0.0104 pouces = 0.264 mm)
         use_tiff (bool, optional): Si True, cherche des fichiers TIFF, sinon cherche des JPEG
+        show_grid (bool, optional): Si True, affiche une grille entre les images
+        grid_color (tuple, optional): Couleur de la grille (B, G, R)
+        grid_alpha (float, optional): Transparence de la grille (0.0-1.0)
+        grid_thickness (int, optional): Épaisseur des lignes de la grille en pixels
+        show_numbers (bool, optional): Si True, affiche les numéros d'image
+        numbers_color (tuple, optional): Couleur des numéros (B, G, R)
+        numbers_alpha (float, optional): Transparence des numéros (0.0-1.0)
         
     Returns:
         numpy.ndarray: Image assemblée
@@ -337,7 +346,7 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
     
     # Vérifier si nous avons trouvé des images
     if not image_files:
-        raise ValueError(f"Aucune image correspondant au motif {pattern} trouvée dans {image_folder}")
+        raise ValueError(f"Aucune image correspondant au motif {sample_name}_* trouvée dans {image_folder}")
     
     # Parser le fichier de grille
     position_dict, (rows, cols) = parse_grid_file(grid_file_path)
@@ -376,6 +385,9 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
     print(f"Taille de pixel: {pixel_size_mm} mm")
     print(f"Dimensions réelles: {final_width * pixel_size_mm:.1f} x {final_height * pixel_size_mm:.1f} mm")
     
+    # Dictionnaire pour stocker les positions de la grille pour l'ajout ultérieur
+    grid_positions = {}
+    
     processed = 0
     for img_num, (row, col) in position_dict.items():
         if img_num not in image_files:
@@ -393,12 +405,57 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
         y_pos = adj_row * effective_height
         x_pos = adj_col * effective_width
         
+        # Stocker la position pour l'ajout de la grille ultérieurement
+        grid_positions[img_num] = (x_pos, y_pos, img_width, img_height)
+        
         # Placer l'image dans le résultat
         result[y_pos:y_pos+img_height, x_pos:x_pos+img_width] = img
         
         processed += 1
         if processed % 20 == 0 or processed == len(image_files):
             display_progress("Assemblage", processed, len(image_files))
+    
+    # Ajouter la grille et les numéros d'image si demandé
+    if show_grid or show_numbers:
+        # Créer une copie de l'image pour dessiner la grille et les numéros
+        overlay = result.copy()
+        
+        # Dessiner la grille
+        if show_grid:
+            for img_num, (x_pos, y_pos, width, height) in grid_positions.items():
+                # Dessiner le rectangle autour de l'image
+                cv2.rectangle(overlay, (x_pos, y_pos), (x_pos + width, y_pos + height), grid_color, grid_thickness)
+        
+        # Ajouter les numéros d'image
+        if show_numbers:
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.8
+            font_thickness = 2
+            
+            for img_num, (x_pos, y_pos, width, height) in grid_positions.items():
+                # Extraire les 3 derniers chiffres du numéro d'image
+                num_str = f"{img_num % 1000:03d}"  # Format: 001, 002, etc.
+                
+                # Calculer la taille du texte pour le positionner correctement
+                text_size = cv2.getTextSize(num_str, font, font_scale, font_thickness)[0]
+                
+                # Position du texte (coin supérieur gauche avec un petit décalage)
+                text_x = x_pos + 10
+                text_y = y_pos + text_size[1] + 10
+                
+                # Dessiner un fond semi-transparent pour le texte
+                rect_padding = 5
+                cv2.rectangle(overlay, 
+                             (text_x - rect_padding, text_y - text_size[1] - rect_padding),
+                             (text_x + text_size[0] + rect_padding, text_y + rect_padding),
+                             numbers_color, -1)  # -1 pour remplir le rectangle
+                
+                # Dessiner le texte en blanc
+                cv2.putText(overlay, num_str, (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness)
+        
+        # Fusionner l'overlay avec l'image originale
+        # Utiliser grid_alpha comme valeur alpha pour la grille et les numéros
+        cv2.addWeighted(overlay, grid_alpha, result, 1 - grid_alpha, 0, result)
     
     # Créer le répertoire de sortie si nécessaire
     output_dir = os.path.dirname(output_path)
@@ -420,8 +477,10 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
         "h_overlap": h_overlap,
         "v_overlap": v_overlap,
         "pixel_size_mm": pixel_size_mm,
-        "source_directory": image_folder,  # Ajout du chemin source
-        "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Ajout de la date/heure
+        "source_directory": image_folder,
+        "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "show_grid": show_grid,
+        "show_numbers": show_numbers
     }
     
     # Sauvegarder les informations dans un fichier JSON

@@ -459,10 +459,12 @@ class StitcherGUI:
                     self.log("Détection automatique du chevauchement...")
                     
                     # Trouver le motif du nom de fichier
-                    file_ext = ".tiff" if self.use_tiff.get() else ".jpeg"
+                    file_extensions = [".tif", ".tiff"] if self.use_tiff.get() else [".jpeg", ".jpg"]
                     input_dir = self.input_dir.get()
                     
-                    files = [f for f in os.listdir(input_dir) if f.lower().endswith(file_ext)]
+                    files = []
+                    for ext in file_extensions:
+                        files.extend([f for f in os.listdir(input_dir) if f.lower().endswith(ext)])
                     
                     sample_name = self.sample_name.get()
                     if not sample_name and files:

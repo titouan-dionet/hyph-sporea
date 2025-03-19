@@ -422,10 +422,24 @@ def stitch_images(image_folder, grid_file_path, output_path, h_overlap=105, v_ov
         
         # Dessiner la grille
         if show_grid:
+            # Créer un tableau pour représenter la grille
+            grid_matrix = np.zeros((max_row + 1, max_col + 1), dtype=int)
+            for img_num, (row, col) in position_dict.items():
+                if img_num in image_files:
+                    grid_matrix[row, col] = 1
+            
             for img_num, (x_pos, y_pos, width, height) in grid_positions.items():
-                # Dessiner le rectangle autour de l'image
-                cv2.rectangle(overlay, (x_pos, y_pos), (x_pos + width, y_pos + height), grid_color, grid_thickness)
-        
+                # Déterminer si cette image a des voisins à droite et en bas
+                row, col = position_dict[img_num]
+                has_right_neighbor = col < max_col and grid_matrix[row, col+1] == 1
+                has_bottom_neighbor = row < max_row and grid_matrix[row+1, col] == 1
+                
+                # Dessiner le rectangle avec les bords ajustés pour l'overlap
+                x2 = x_pos + width if not has_right_neighbor else x_pos + effective_width
+                y2 = y_pos + height if not has_bottom_neighbor else y_pos + effective_height
+                
+                cv2.rectangle(overlay, (x_pos, y_pos), (x2, y2), grid_color, grid_thickness)
+                
         # Ajouter les numéros d'image
         if show_numbers:
             font = cv2.FONT_HERSHEY_SIMPLEX

@@ -38,14 +38,14 @@ class StitcherGUI:
         """Initialise l'interface graphique"""
         self.root = root
         self.root.title("Assemblage d'images HYPH-SPOREA")
-        self.root.geometry("800x600")
-        self.root.minsize(700, 500)
+        self.root.geometry("800x700")  # Augmenter la hauteur pour les options supplémentaires
+        self.root.minsize(700, 600)
         
         # Variables pour les entrées utilisateur
         self.input_dir = tk.StringVar()
         self.grid_file = tk.StringVar()
-        self.output_dir = tk.StringVar()  # Nouveau: dossier de sortie séparé
-        self.output_filename = tk.StringVar()  # Nouveau: nom de fichier de sortie
+        self.output_dir = tk.StringVar()
+        self.output_filename = tk.StringVar()
         self.sample_name = tk.StringVar()
         self.h_overlap = tk.IntVar(value=105)
         self.v_overlap = tk.IntVar(value=93)
@@ -53,6 +53,14 @@ class StitcherGUI:
         self.use_tiff = tk.BooleanVar(value=True)
         self.auto_overlap = tk.BooleanVar(value=False)
         self.num_samples = tk.IntVar(value=20)
+        
+        # Variables pour les options de grille
+        self.show_grid = tk.BooleanVar(value=False)
+        self.grid_color = tk.StringVar(value="black")
+        self.grid_alpha = tk.IntVar(value=40)  # En pourcentage (0-100)
+        self.grid_alpha_display = tk.StringVar(value="40%")
+        self.grid_thickness = tk.IntVar(value=2)
+        self.show_numbers = tk.BooleanVar(value=False)
         
         # Créer l'interface
         self.create_widgets()
@@ -211,12 +219,23 @@ class StitcherGUI:
         self.grid_alpha_slider.pack(side=tk.LEFT, padx=5)
         ttk.Label(grid_alpha_frame, textvariable=self.grid_alpha_display).pack(side=tk.LEFT, padx=5)
         
+        # Épaisseur de la grille
+        ttk.Label(grid_frame, text="Épaisseur de la grille (pixels):").grid(row=3, column=0, sticky=tk.W, pady=2)
+        ttk.Spinbox(
+            grid_frame, 
+            from_=1, 
+            to=10, 
+            increment=1, 
+            textvariable=self.grid_thickness, 
+            width=5
+        ).grid(row=3, column=1, sticky=tk.W, pady=2)
+        
         # Option d'affichage des numéros d'image
         ttk.Checkbutton(
             grid_frame,
             text="Afficher les numéros d'image",
             variable=self.show_numbers
-        ).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=2)
+        ).grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=2)
         
         # Configurer état initial des champs d'overlap
         self.toggle_overlap_fields()
@@ -313,21 +332,6 @@ class StitcherGUI:
             # Mettre à jour le nom de fichier en fonction du dossier
             self.update_output_filename()
     
-    def browse_output_path(self):
-        """Ouvre un dialogue pour sélectionner le fichier de sortie (obsolète)"""
-        file_path = filedialog.asksaveasfilename(
-            title="Enregistrer l'image assemblée sous",
-            defaultextension=".jpeg",
-            filetypes=[("Images JPEG", "*.jpeg"), ("Images PNG", "*.png"), ("Tous les fichiers", "*.*")]
-        )
-        if file_path:
-            # Extraire le dossier et le nom de fichier
-            directory = os.path.dirname(file_path)
-            filename = os.path.basename(file_path)
-            
-            self.output_dir.set(directory)
-            self.output_filename.set(filename)
-    
     def update_output_paths(self):
         """Met à jour automatiquement le dossier et le nom de fichier de sortie"""
         if not self.input_dir.get():
@@ -420,6 +424,21 @@ class StitcherGUI:
             self.update_output_filename()
         
         return True
+    
+    def update_grid_alpha_display(self, *args):
+        """Met à jour l'affichage de la valeur d'alpha pour la grille"""
+        self.grid_alpha_display.set(f"{self.grid_alpha.get()}%")
+    
+    def get_color_tuple(self, color_name):
+        """Convertit un nom de couleur en tuple (B, G, R) pour OpenCV"""
+        color_map = {
+            "black": (0, 0, 0),
+            "white": (255, 255, 255),
+            "red": (0, 0, 255),
+            "green": (0, 255, 0),
+            "blue": (255, 0, 0)
+        }
+        return color_map.get(color_name, (0, 0, 0))
     
     def estimate_remaining_time(self):
         """Estime le temps restant en fonction du nombre d'images traitées"""
@@ -729,11 +748,25 @@ class StitcherGUI:
                     detection_time = time.time() - detection_start
                     self.log(f"Chevauchement détecté: {h_overlap}x{v_overlap} pixels (en {self.format_time(detection_time)})")
                 
+                # Calculer la valeur d'alpha pour la grille (0.0-1.0)
+                grid_alpha = self.grid_alpha.get() / 100.0
+                
+                # Obtenir la couleur pour la grille
+                grid_color = self.get_color_tuple(self.grid_color.get())
+                numbers_color = self.get_color_tuple(self.grid_color.get())  # On utilise la même couleur pour les numéros
+                
                 # Exécuter l'assemblage
                 self.log("\nAssemblage des images...")
                 self.log(f"Chevauchement horizontal: {self.h_overlap.get()} pixels")
                 self.log(f"Chevauchement vertical: {self.v_overlap.get()} pixels")
                 self.log(f"Taille du pixel: {self.pixel_size.get()} mm")
+                
+                # Options de grille
+                if self.show_grid.get():
+                    self.log(f"Grille activée - Couleur: {self.grid_color.get()}, Transparence: {self.grid_alpha.get()}%, Épaisseur: {self.grid_thickness.get()} px")
+                
+                if self.show_numbers.get():
+                    self.log("Affichage des numéros d'image activé")
                 
                 # S'assurer que le répertoire de sortie existe
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -749,7 +782,14 @@ class StitcherGUI:
                         v_overlap=self.v_overlap.get(),
                         sample_name=self.sample_name.get() or None,
                         pixel_size_mm=self.pixel_size.get(),
-                        use_tiff=self.use_tiff.get()
+                        use_tiff=self.use_tiff.get(),
+                        show_grid=self.show_grid.get(),
+                        grid_color=grid_color,
+                        grid_alpha=grid_alpha,
+                        grid_thickness=self.grid_thickness.get(),
+                        show_numbers=self.show_numbers.get(),
+                        numbers_color=numbers_color,
+                        numbers_alpha=grid_alpha
                     )
                 
                 # Récupérer la sortie et l'afficher dans le journal
@@ -769,6 +809,13 @@ class StitcherGUI:
                         # Ajouter le chemin vers le dossier source
                         info["source_directory"] = self.input_dir.get()
                         
+                        # Ajouter les options de grille et d'affichage des numéros
+                        info["show_grid"] = self.show_grid.get()
+                        info["grid_color"] = self.grid_color.get()
+                        info["grid_transparency"] = self.grid_alpha.get()
+                        info["grid_thickness"] = self.grid_thickness.get()
+                        info["show_numbers"] = self.show_numbers.get()
+                        
                         # Ajouter le temps d'exécution
                         execution_time = time.time() - self.start_time
                         info["execution_time_seconds"] = execution_time
@@ -785,6 +832,12 @@ class StitcherGUI:
                         self.log(f"- Dimensions physiques: {info.get('physical_dimensions', 'N/A')}")
                         self.log(f"- Images traitées: {info.get('processed_count', 0)}/{info.get('original_count', 0)}")
                         self.log(f"- Temps d'exécution: {info.get('execution_time', 'N/A')}")
+                        
+                        if self.show_grid.get() or self.show_numbers.get():
+                            self.log("- Options visuelles activées: " + 
+                                  (f"Grille ({self.grid_color.get()}, {self.grid_alpha.get()}%)" if self.show_grid.get() else "") +
+                                  (" + " if self.show_grid.get() and self.show_numbers.get() else "") +
+                                  (f"Numéros d'image" if self.show_numbers.get() else ""))
                     except Exception as e:
                         self.log(f"Erreur lors de la mise à jour des métadonnées: {str(e)}")
                 
@@ -802,8 +855,8 @@ class StitcherGUI:
                 
                 # Afficher un message de succès
                 messagebox.showinfo("Assemblage terminé", 
-                                   f"Temps d'exécution: {execution_time_str}\n\n"
-                                   f"Image assemblée sauvegardée dans:\n{output_path}")
+                                  f"Temps d'exécution: {execution_time_str}\n\n"
+                                  f"Image assemblée sauvegardée dans:\n{output_path}")
             
             except Exception as e:
                 self.log(f"Erreur lors de l'assemblage: {str(e)}")

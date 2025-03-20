@@ -13,7 +13,8 @@ __all__ = [
     'SporeAnnotationTool',
     'run_annotation_tool',
     'HyphSporeaGUI',  # Ajouter la classe de l'interface principale
-    'run_gui'  # Ajouter la fonction pour lancer l'interface
+    'run_gui',  # Ajouter la fonction pour lancer l'interface
+    'SporeCounterApp' # Interface de comptage manuel des spores
 ]
 
 def __getattr__(name):

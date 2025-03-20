@@ -166,7 +166,6 @@ class SporeCounterApp:
     
     def load_image(self):
         """Charge une image et l'affiche dans le canvas"""
-        # Ouvrir une boîte de dialogue pour sélectionner un fichier image
         file_path = filedialog.askopenfilename(
             title="Sélectionner une image",
             filetypes=[
@@ -179,16 +178,26 @@ class SporeCounterApp:
             return
         
         try:
-            # Charger l'image avec OpenCV
-            self.current_image_cv = cv2.imread(file_path)
+            # Vérifier la taille du fichier
+            file_size = os.path.getsize(file_path) / (1024 * 1024)  # en MB
+            self.status_var.set(f"Chargement de l'image ({file_size:.2f} Mo)...")
+            self.root.update()
             
-            if self.current_image_cv is None:
-                messagebox.showerror("Erreur", "Impossible de lire l'image. Format non supporté.")
-                return
+            # Utilisez la fonction de chargement optimisée pour grandes images
+            pil_img = self.load_large_image(file_path)
             
-            # Convertir de BGR à RGB pour l'affichage
-            img_rgb = cv2.cvtColor(self.current_image_cv, cv2.COLOR_BGR2RGB)
-            self.current_image = Image.fromarray(img_rgb)
+            # Convertir l'image PIL en tableau numpy pour OpenCV
+            self.current_image = pil_img
+            img_np = np.array(pil_img)
+            
+            # Si l'image est en niveaux de gris, la convertir en RGB
+            if len(img_np.shape) == 2:
+                img_np = cv2.cvtColor(img_np, cv2.COLOR_GRAY2BGR)
+            # Si l'image a un canal alpha, le supprimer
+            elif len(img_np.shape) == 3 and img_np.shape[2] == 4:
+                img_np = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
+            
+            self.current_image_cv = img_np
             
             # Mettre à jour le chemin de l'image
             self.current_image_path = file_path
@@ -202,11 +211,58 @@ class SporeCounterApp:
             
             # Mettre à jour le statut
             file_name = os.path.basename(file_path)
-            height, width = self.current_image_cv.shape[:2]
-            self.status_var.set(f"Image chargée: {file_name} ({width}x{height})")
+            width, height = self.current_image.size
+            self.status_var.set(f"Image chargée: {file_name} ({width}x{height}, {file_size:.2f} Mo)")
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()  # Affiche la trace de l'erreur dans la console
             messagebox.showerror("Erreur", f"Erreur lors du chargement de l'image: {str(e)}")
+    
+    def load_large_image(self, file_path, max_dimension=4000):
+        """
+        Charge de grandes images en les redimensionnant à une taille gérable.
+        
+        Args:
+            file_path (str): Chemin de l'image à charger
+            max_dimension (int): Dimension maximale (largeur ou hauteur) en pixels
+            
+        Returns:
+            PIL.Image: Image redimensionnée si nécessaire
+        """
+        # Désactiver la limite de décompression de PIL pour pouvoir lire les métadonnées
+        from PIL import Image
+        Image.MAX_IMAGE_PIXELS = None
+        
+        # Obtenir les dimensions sans charger toute l'image en mémoire
+        with Image.open(file_path) as img:
+            width, height = img.size
+            original_dimensions = f"{width}x{height}"
+            
+            # Calculer le facteur de redimensionnement
+            if width > max_dimension or height > max_dimension:
+                scale = min(max_dimension / width, max_dimension / height)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                
+                # Informer l'utilisateur du redimensionnement
+                messagebox.showinfo("Redimensionnement", 
+                                  f"L'image est très grande ({original_dimensions}). "
+                                  f"Elle a été redimensionnée à {new_width}x{new_height} "
+                                  f"pour des raisons de performance.\n\n"
+                                  f"Les coordonnées exportées seront ajustées pour correspondre "
+                                  f"à l'image originale.")
+                
+                # Stocker le facteur d'échelle pour convertir les coordonnées plus tard
+                self.scale_factor = scale
+                
+                # Charger l'image redimensionnée
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+                return img
+            else:
+                # Pas de redimensionnement nécessaire
+                self.scale_factor = 1.0
+                return img.copy()
     
     def display_image(self):
         """Affiche l'image dans le canvas avec les points marqués"""
@@ -306,8 +362,9 @@ class SporeCounterApp:
                     closest_strain = strain
                     closest_index = i
         
-        # Supprimer le point s'il est suffisamment proche (seuil de 30 pixels)
-        if min_distance < 30 and closest_strain and closest_index >= 0:
+        # Supprimer le point s'il est suffisamment proche (seuil dynamique basé sur le zoom)
+        threshold = 30 / self.zoom_factor if self.zoom_factor > 1 else 30
+        if min_distance < threshold and closest_strain and closest_index >= 0:
             self.spore_points[closest_strain].pop(closest_index)
             
             # Si plus aucun point pour cette souche, supprimer l'entrée
@@ -427,12 +484,25 @@ class SporeCounterApp:
             data = []
             for strain, points in self.spore_points.items():
                 for i, (x, y) in enumerate(points):
-                    data.append({
-                        'ID': i+1,
-                        'Souche': strain,
-                        'X': x,
-                        'Y': y
-                    })
+                    # Convertir les coordonnées à l'échelle de l'image originale si nécessaire
+                    if hasattr(self, 'scale_factor') and self.scale_factor != 1.0:
+                        original_x = int(x / self.scale_factor)
+                        original_y = int(y / self.scale_factor)
+                        data.append({
+                            'ID': i+1,
+                            'Souche': strain,
+                            'X': original_x,  # Coordonnées à l'échelle originale
+                            'Y': original_y,
+                            'X_scaled': x,    # Coordonnées à l'échelle redimensionnée
+                            'Y_scaled': y
+                        })
+                    else:
+                        data.append({
+                            'ID': i+1,
+                            'Souche': strain,
+                            'X': x,
+                            'Y': y
+                        })
             
             # Créer un résumé
             summary = []
@@ -471,8 +541,18 @@ class SporeCounterApp:
                 f.write(f"\n# INFORMATIONS SUR L'IMAGE\n")
                 f.write(f"Fichier,{os.path.basename(self.current_image_path)}\n")
                 f.write(f"Chemin,{self.current_image_path}\n")
+                
+                # Ajouter des informations sur les dimensions et le redimensionnement
                 if self.current_image:
-                    f.write(f"Dimensions,{self.current_image.width}x{self.current_image.height}\n")
+                    if hasattr(self, 'scale_factor') and self.scale_factor != 1.0:
+                        original_width = int(self.current_image.width / self.scale_factor)
+                        original_height = int(self.current_image.height / self.scale_factor)
+                        f.write(f"Dimensions originales,{original_width}x{original_height}\n")
+                        f.write(f"Dimensions redimensionnées,{self.current_image.width}x{self.current_image.height}\n")
+                        f.write(f"Facteur de redimensionnement,{self.scale_factor:.6f}\n")
+                    else:
+                        f.write(f"Dimensions,{self.current_image.width}x{self.current_image.height}\n")
+                
                 f.write(f"Date d'exportation,{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             
             messagebox.showinfo("Succès", f"Données exportées avec succès vers:\n{file_path}")

@@ -28,7 +28,9 @@ class SporeCounterApp:
         """Initialise l'application"""
         self.root = root
         self.root.title("Compteur de Spores")
-        self.root.geometry("1400x900")
+        
+        # Ajuster la taille de la fenêtre à l'écran
+        self.adjust_window_to_screen()
         
         # Définir les souches de champignons
         self.fungus_strains = [
@@ -84,16 +86,48 @@ class SporeCounterApp:
         
         # Configurer l'interface
         self.setup_ui()
+        
+    def adjust_window_to_screen(self):
+        """Ajuste la taille de la fenêtre à l'écran actuel"""
+        # Obtenir les dimensions de l'écran
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Définir la taille de la fenêtre (par exemple, 80% de la taille de l'écran)
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
+        
+        # Positionner la fenêtre au centre de l'écran
+        x_position = (screen_width - window_width) // 2
+        y_position = (screen_height - window_height) // 2
+        
+        # Définir la géométrie de la fenêtre
+        self.root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
+        
+        # Option pour permettre le redimensionnement
+        self.root.resizable(True, True)
+        
+        # Optionnel : définir des tailles minimales
+        self.root.minsize(800, 600)
     
     def setup_ui(self):
         """Configure l'interface utilisateur"""
         # Frame principale
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        main_paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # Frame gauche pour les contrôles
-        control_frame = ttk.Frame(main_frame, width=250)
-        control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
+        control_frame = ttk.Frame(main_paned, width=250)
+        
+        # Frame droite pour l'affichage de l'image
+        display_frame = ttk.Frame(main_paned)
+        
+        main_paned.add(control_frame, weight=1)
+        main_paned.add(display_frame, weight=4)
+        
+        # Stocker ces frames comme attributs pour y accéder ailleurs
+        self.control_frame = control_frame
+        self.display_frame = display_frame
         
         # Bouton pour charger une image
         self.load_button = ttk.Button(control_frame, text="Charger une image", command=self.load_image)
@@ -104,7 +138,7 @@ class SporeCounterApp:
         
         # Indicateur de position actuelle
         ttk.Label(self.grid_nav_frame, textvariable=self.grid_position).pack(anchor=tk.CENTER, pady=5)
-        
+    
         # Créer une grille de boutons de navigation
         grid_buttons_frame = ttk.Frame(self.grid_nav_frame)
         grid_buttons_frame.pack(fill=tk.X, pady=5)
@@ -181,12 +215,8 @@ class SporeCounterApp:
         ttk.Button(control_frame, text="Exporter CSV", command=self.export_csv).pack(fill=tk.X, pady=5)
         ttk.Button(control_frame, text="Réinitialiser points", command=self.reset_points).pack(fill=tk.X, pady=5)
         
-        # Frame droite pour l'affichage de l'image
-        display_frame = ttk.Frame(main_frame)
-        display_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
         # Canvas pour l'image avec barres de défilement
-        self.canvas_frame = ttk.Frame(display_frame)
+        self.canvas_frame = ttk.Frame(display_frame)  # Notez le changement ici : display_frame
         self.canvas_frame.pack(fill=tk.BOTH, expand=True)
         
         # Canvas et scrollbars
@@ -216,6 +246,15 @@ class SporeCounterApp:
         self.status_var = tk.StringVar(value="Prêt. Chargez une image pour commencer.")
         status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+    def toggle_fullscreen(self):
+        """Basculer entre le mode plein écran et normal"""
+        is_fullscreen = not self.root.attributes('-fullscreen')
+        self.root.attributes('-fullscreen', is_fullscreen)
+        
+        # Option : créer un raccourci clavier pour quitter le plein écran
+        if is_fullscreen:
+            self.root.bind('<Escape>', lambda e: self.root.attributes('-fullscreen', False))
     
     def load_image(self):
         """Charge une image et l'affiche dans le canvas avec gestion des grandes images"""
